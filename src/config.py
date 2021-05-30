@@ -1,10 +1,10 @@
 import numpy as np
 
 # DATASET PARAMETERS
-TRAIN_DIR = "/datasets/nyud/"
+TRAIN_DIR = "/content/LWR/datasets/nyu/"
 VAL_DIR = TRAIN_DIR
-TRAIN_LIST = ["./data/train.nyu"] * 3
-VAL_LIST = ["./data/val.nyu"] * 3
+TRAIN_LIST = ["/content/LWR/datasets/nyu/train/train.txt"] * 3
+VAL_LIST = ["/content/LWR/datasets/nyu/val/val.txt"] * 3
 SHORTER_SIDE = [350] * 3
 CROP_SIZE = [500] * 3
 NORMALISE_PARAMS = [
