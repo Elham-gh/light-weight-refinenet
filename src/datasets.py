@@ -214,8 +214,8 @@ class NYUDataset(Dataset):
         return len(self.datalist)
 
     def __getitem__(self, idx):
-        img_name = os.path.join(self.root_dir, 'train', 'images', self.datalist[idx])
-        msk_name = os.path.join(self.root_dir, 'train', 'GT', self.datalist[idx])
+        img_name = os.path.join(self.root_dir, 'images', self.datalist[idx])
+        msk_name = os.path.join(self.root_dir, 'GT', self.datalist[idx])
 
         def read_image(x):
             img_arr = np.array(Image.open(x))
