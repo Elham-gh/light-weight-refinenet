@@ -191,14 +191,17 @@ class NYUDataset(Dataset):
             transform_{trn, val} (callable, optional): Optional transform to be applied
                 on a sample.
         """
-        with open(data_file, "rb") as f:
+        with open(data_file, "r") as f:###* rb
             datalist = f.readlines()
-        self.datalist = [
-            (k, v)
-            for k, v in map(
-                lambda x: x.decode("utf-8").strip("\n").split("\t"), datalist
-            )
-        ]
+        
+        # self.datalist = [
+        #     (k, v)
+        #     for k, v in map(
+        #         lambda x: x.decode("utf-8").strip("\n").split("\t"), datalist
+        #     )
+        # ]
+        self.datalist = [i[:-1] + '.png' for i in datalist]
+        
         self.root_dir = data_dir
         self.transform_trn = transform_trn
         self.transform_val = transform_val
@@ -211,8 +214,8 @@ class NYUDataset(Dataset):
         return len(self.datalist)
 
     def __getitem__(self, idx):
-        img_name = os.path.join(self.root_dir, self.datalist[idx][0])
-        msk_name = os.path.join(self.root_dir, self.datalist[idx][1])
+        img_name = os.path.join(self.root_dir, 'train', 'images', self.datalist[idx])
+        msk_name = os.path.join(self.root_dir, 'train', 'GT', self.datalist[idx])
 
         def read_image(x):
             img_arr = np.array(Image.open(x))
