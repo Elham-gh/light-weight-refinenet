@@ -29,7 +29,7 @@ FREEZE_BN = [True] * 3
 NUM_SEGM_EPOCHS = [100] * 3
 PRINT_EVERY = 10
 RANDOM_SEED = 42
-SNAPSHOT_DIR = "./ckpt/"
+SNAPSHOT_DIR = "/content/drive/MyDrive/Super-BPD/LWR/"
 CKPT_PATH = "./ckpt/checkpoint.pth.tar"
 VAL_EVERY = [5] * 3  # how often to record validation scores
 
