@@ -191,7 +191,7 @@ class NYUDataset(Dataset):
             transform_{trn, val} (callable, optional): Optional transform to be applied
                 on a sample.
         """
-        with open(data_file, "r") as f:###* rb
+        with open(data_file, "rb") as f:###* rb
             datalist = f.readlines()
         
         # self.datalist = [
@@ -200,8 +200,7 @@ class NYUDataset(Dataset):
         #         lambda x: x.decode("utf-8").strip("\n").split("\t"), datalist
         #     )
         # ]
-        self.datalist = [i[:-1] + '.png' for i in datalist]
-        
+        self.datalist = [i[:-1].decode("utf-8") + '.png' for i in datalist]
         self.root_dir = data_dir
         self.transform_trn = transform_trn
         self.transform_val = transform_val
@@ -225,6 +224,8 @@ class NYUDataset(Dataset):
 
         image = read_image(img_name)
         mask = np.array(Image.open(msk_name))
+        print(image.shape)
+        print(mask.shape)
         if img_name != msk_name:
             assert len(mask.shape) == 2, "Masks must be encoded without colourmap"
         sample = {"image": image, "mask": mask}
