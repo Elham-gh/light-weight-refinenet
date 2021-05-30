@@ -1,8 +1,8 @@
 import numpy as np
 
 # DATASET PARAMETERS
-TRAIN_DIR = "/content/LWR/datasets/nyu/"
-VAL_DIR = TRAIN_DIR
+TRAIN_DIR = "/content/LWR/datasets/nyu/train/"
+VAL_DIR = "/content/LWR/datasets/nyu/val/"
 TRAIN_LIST = ["/content/LWR/datasets/nyu/train/train.txt"] * 3
 VAL_LIST = ["/content/LWR/datasets/nyu/val/val.txt"] * 3
 SHORTER_SIDE = [350] * 3
@@ -12,12 +12,12 @@ NORMALISE_PARAMS = [
     np.array([0.485, 0.456, 0.406]).reshape((1, 1, 3)),  # MEAN
     np.array([0.229, 0.224, 0.225]).reshape((1, 1, 3)),
 ]  # STD
-BATCH_SIZE = [6] * 3
+BATCH_SIZE = [4] * 3
 NUM_WORKERS = 16
 NUM_CLASSES = [40] * 3
 LOW_SCALE = [0.5] * 3
 HIGH_SCALE = [2.0] * 3
-IGNORE_LABEL = 255
+IGNORE_LABEL = 0
 
 # ENCODER PARAMETERS
 ENC = "50"
