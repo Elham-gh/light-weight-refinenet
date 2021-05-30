@@ -224,8 +224,8 @@ class NYUDataset(Dataset):
 
         image = read_image(img_name)
         mask = np.array(Image.open(msk_name))
-        print(image.shape)
-        print(mask.shape)
+        print(np.unique(mask))
+        
         if img_name != msk_name:
             assert len(mask.shape) == 2, "Masks must be encoded without colourmap"
         sample = {"image": image, "mask": mask}
