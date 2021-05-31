@@ -5,6 +5,8 @@ import os
 import random
 import re
 import time
+import numpy as np
+import scipy.io
 
 # misc
 import cv2
@@ -372,21 +374,24 @@ def load_ckpt(ckpt_path, ckpt_dict):
 
 def validate(segmenter, val_loader, epoch, num_classes=-1):
     """Validate segmenter
-
     Args:
       segmenter (nn.Module) : segmentation network
       val_loader (DataLoader) : training data iterator
       epoch (int) : current epoch
       num_classes (int) : number of classes to consider
-
     Returns:
       Mean IoU (float)
     """
     val_loader.dataset.set_stage("val")
     segmenter.eval()
     cm = np.zeros((num_classes, num_classes), dtype=int)
+    ###* Super BPD
+    mat = scipy.io.loadmat('/content/LWR/test_nyu_pred_flux/nyu/' + 'name' + '.mat')
+
     with torch.no_grad():
         for i, sample in enumerate(val_loader):
+            print(sample)
+            hi
             input = sample["image"]
             target = sample["mask"]
             input_var = torch.autograd.Variable(input).float().cuda()
@@ -401,6 +406,11 @@ def validate(segmenter, val_loader, epoch, num_classes=-1):
                 .argmax(axis=2)
                 .astype(np.uint8)
             )
+            ###* Super BPDs
+            
+
+
+
             # Compute IoU
             gt = target[0].data.cpu().numpy().astype(np.uint8)
             gt_idx = (
@@ -436,17 +446,21 @@ def main():
         torch.cuda.manual_seed_all(args.random_seed)
     np.random.seed(args.random_seed)
     random.seed(args.random_seed)
+    
     ## Generate Segmenter ##
-    segmenter = nn.DataParallel(
-        create_segmenter(args.enc, args.enc_pretrained, args.num_classes[0])
-    ).cuda()
+    segmenter = create_segmenter(args.enc, args.enc_pretrained, args.num_classes[0])
+    segmenter.load_state_dict(torch.load('/content/drive/MyDrive/Super-BPD/LWR/LWR_nyu.pth')).cuda()
+
+    # segmenter = nn.DataParallel(
+    #     create_segmenter(args.enc, args.enc_pretrained, args.num_classes[0])
+    # ).cuda()
     logger.info(
         " Loaded Segmenter {}, ImageNet-Pre-Trained={}, #PARAMS={:3.2f}M".format(
             args.enc, args.enc_pretrained, compute_params(segmenter) / 1e6
         )
     )
     ## Restore if any ##
-    best_val, epoch_start = load_ckpt(args.ckpt_path, {"segmenter": segmenter})
+    # best_val, epoch_start = load_ckpt(args.ckpt_path, {"segmenter": segmenter})
     ## Criterion ##
     segm_crit = nn.NLLLoss2d(ignore_index=args.ignore_label).cuda()
 
@@ -479,6 +493,8 @@ def main():
         )
         
         miou = validate(segmenter, val_loader, epoch_start, args.num_classes[task_idx])
+        with open('/content/LWR/result.txt', 'w') as f:
+          f.write(miou)
 
         # logger.info(" Training Stage {}".format(str(task_idx)))
         ## Optimisers ##
