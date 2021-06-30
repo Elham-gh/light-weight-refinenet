@@ -74,7 +74,7 @@ def get_arguments():
     # Encoder
     parser.add_argument("--enc", type=str, default=ENC, help="Encoder net type.")
     parser.add_argument("--enc-pretrained", type=bool, default=ENC_PRETRAINED, help="Whether to init with imagenet weights.")
-    parser.add_argument('--resume', default='', type=str, metavar='PATH', help='path to latest checkpoint (default: none)')
+    parser.add_argument("--resume", default="", type=str, metavar="PATH", help="path to latest checkpoint")
     
     # General
     parser.add_argument("--evaluate", type=bool, default=EVALUATE, help="If true, only validate segmentation.")
@@ -365,13 +365,18 @@ def main():
     )
     # Restore if any
     best_val, epoch_start = 0, 0
+    print('inaha', args.resume)
+    hi
     if args.resume:
+        print(369)
         saved_model = args.resume + 'model.pth.tar'
         if os.path.isfile(saved_model):
+            print(372)
             segmenter.load_state_dict(torch.load(saved_model, map_location='cpu'))
             epoch_start = load_ckpt(args.resume, None, mode='numbers')            
             best_val = load_ckpt(args.resume, None, mode='best')   
             print_log('Found checkpoint at {}'.format(saved_model))
+            print('Found checkpoint at {}'.format(saved_model))
         else:
             print_log("=> no checkpoint found at '{}'".format(args.resume))
             return
@@ -381,12 +386,8 @@ def main():
     segm_crit = nn.NLLLoss2d(ignore_index=args.ignore_label).cuda()
 
     ## Saver ##
-    saver = Saver(
-        args=vars(args),
-        ckpt_dir=args.snapshot_dir,
-        best_val=best_val,
-        condition=lambda x, y: x > y,
-    )  # keep checkpoint with the best validation score
+    saver = Saver(args=vars(args), ckpt_dir=args.snapshot_dir,
+        best_val=best_val, condition=lambda x, y: x > y)  # keep checkpoint with the best validation score
 
     logger.info(" Training Process Starts")
     for task_idx in range(args.num_stages):
@@ -422,6 +423,7 @@ def main():
             optim_enc.load_state_dict(enc_opt)
             optim_dec.load_state_dict(dec_opt())
             args.resume = False
+            print('optimizer loaded')
 
         for epoch in range(args.num_segm_epochs[task_idx]):
             train_segmenter(segmenter, train_loader, optim_enc, optim_dec,
