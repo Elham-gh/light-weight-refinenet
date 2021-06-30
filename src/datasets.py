@@ -200,7 +200,7 @@ class NYUDataset(Dataset):
         #         lambda x: x.decode("utf-8").strip("\n").split("\t"), datalist
         #     )
         # ]
-        self.datalist = [i[:-1].decode("utf-8") + '.png' for i in datalist]
+        self.datalist = [i[:6].decode("utf-8") + '.png' for i in datalist]
         self.root_dir = data_dir
         self.transform_trn = transform_trn
         self.transform_val = transform_val
@@ -213,8 +213,8 @@ class NYUDataset(Dataset):
         return len(self.datalist)
 
     def __getitem__(self, idx):
-        img_name = os.path.join(self.root_dir, 'images', self.datalist[idx])
-        msk_name = os.path.join(self.root_dir, 'GT', self.datalist[idx])
+        img_name = os.path.join(self.root_dir, 'rgb', self.datalist[idx])
+        msk_name = os.path.join(self.root_dir, 'masks', self.datalist[idx])
 
         def read_image(x):
             img_arr = np.array(Image.open(x))
