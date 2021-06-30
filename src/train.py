@@ -51,207 +51,48 @@ from util import *
 
 def get_arguments():
     """Parse all the arguments provided from the CLI.
-
     Returns:
       A list of parsed arguments.
     """
     parser = argparse.ArgumentParser(description="Full Pipeline Training")
-
+    
     # Dataset
-    parser.add_argument(
-        "--train-dir",
-        type=str,
-        default=TRAIN_DIR,
-        help="Path to the training set directory.",
-    )
-    parser.add_argument(
-        "--val-dir",
-        type=str,
-        default=VAL_DIR,
-        help="Path to the validation set directory.",
-    )
-    parser.add_argument(
-        "--train-list",
-        type=str,
-        nargs="+",
-        default=TRAIN_LIST,
-        help="Path to the training set list.",
-    )
-    parser.add_argument(
-        "--val-list",
-        type=str,
-        nargs="+",
-        default=VAL_LIST,
-        help="Path to the validation set list.",
-    )
-    parser.add_argument(
-        "--shorter-side",
-        type=int,
-        nargs="+",
-        default=SHORTER_SIDE,
-        help="Shorter side transformation.",
-    )
-    parser.add_argument(
-        "--crop-size",
-        type=int,
-        nargs="+",
-        default=CROP_SIZE,
-        help="Crop size for training,",
-    )
-    parser.add_argument(
-        "--normalise-params",
-        type=list,
-        default=NORMALISE_PARAMS,
-        help="Normalisation parameters [scale, mean, std],",
-    )
-    parser.add_argument(
-        "--batch-size",
-        type=int,
-        nargs="+",
-        default=BATCH_SIZE,
-        help="Batch size to train the segmenter model.",
-    )
-    parser.add_argument(
-        "--num-workers",
-        type=int,
-        default=NUM_WORKERS,
-        help="Number of workers for pytorch's dataloader.",
-    )
-    parser.add_argument(
-        "--num-classes",
-        type=int,
-        nargs="+",
-        default=NUM_CLASSES,
-        help="Number of output classes for each task.",
-    )
-    parser.add_argument(
-        "--low-scale",
-        type=float,
-        nargs="+",
-        default=LOW_SCALE,
-        help="Lower bound for random scale",
-    )
-    parser.add_argument(
-        "--high-scale",
-        type=float,
-        nargs="+",
-        default=HIGH_SCALE,
-        help="Upper bound for random scale",
-    )
-    parser.add_argument(
-        "--ignore-label",
-        type=int,
-        default=IGNORE_LABEL,
-        help="Label to ignore during training",
-    )
+    parser.add_argument("--train-dir", type=str, default=TRAIN_DIR, help="Path to the training set directory.")
+    parser.add_argument("--val-dir", type=str, default=VAL_DIR, help="Path to the validation set directory.")
+    parser.add_argument("--train-list", type=str, nargs="+", default=TRAIN_LIST, help="Path to the training set list.")
+    parser.add_argument("--val-list", type=str, nargs="+", default=VAL_LIST, help="Path to the validation set list.")
+    parser.add_argument("--shorter-side", type=int, nargs="+", default=SHORTER_SIDE, help="Shorter side transformation.")
+    parser.add_argument("--crop-size", type=int, nargs="+", default=CROP_SIZE, help="Crop size for training,")
+    parser.add_argument("--normalise-params", type=list, default=NORMALISE_PARAMS, help="Normalisation parameters [scale, mean, std],")
+    parser.add_argument("--batch-size", type=int, nargs="+", default=BATCH_SIZE, help="Batch size to train the segmenter model.")
+    parser.add_argument("--num-workers", type=int, default=NUM_WORKERS, help="Number of workers for pytorch's dataloader.")
+    parser.add_argument("--num-classes", type=int, nargs="+", default=NUM_CLASSES, help="Number of output classes for each task.")
+    parser.add_argument("--low-scale", type=float, nargs="+", default=LOW_SCALE, help="Lower bound for random scale")
+    parser.add_argument("--high-scale", type=float, nargs="+", default=HIGH_SCALE, help="Upper bound for random scale")
+    parser.add_argument("--ignore-label", type=int, default=IGNORE_LABEL, help="Label to ignore during training")
 
     # Encoder
     parser.add_argument("--enc", type=str, default=ENC, help="Encoder net type.")
-    parser.add_argument(
-        "--enc-pretrained",
-        type=bool,
-        default=ENC_PRETRAINED,
-        help="Whether to init with imagenet weights.",
-    )
+    parser.add_argument("--enc-pretrained", type=bool, default=ENC_PRETRAINED, help="Whether to init with imagenet weights.")
+    
     # General
-    parser.add_argument(
-        "--evaluate",
-        type=bool,
-        default=EVALUATE,
-        help="If true, only validate segmentation.",
-    )
-    parser.add_argument(
-        "--freeze-bn",
-        type=bool,
-        nargs="+",
-        default=FREEZE_BN,
-        help="Whether to keep batch norm statistics intact.",
-    )
-    parser.add_argument(
-        "--num-segm-epochs",
-        type=int,
-        nargs="+",
-        default=NUM_SEGM_EPOCHS,
-        help="Number of epochs to train for segmentation network.",
-    )
-    parser.add_argument(
-        "--print-every",
-        type=int,
-        default=PRINT_EVERY,
-        help="Print information every often.",
-    )
-    parser.add_argument(
-        "--random-seed",
-        type=int,
-        default=RANDOM_SEED,
-        help="Seed to provide (near-)reproducibility.",
-    )
-    parser.add_argument(
-        "--snapshot-dir",
-        type=str,
-        default=SNAPSHOT_DIR,
-        help="Path to directory for storing checkpoints.",
-    )
-    parser.add_argument(
-        "--ckpt-path", type=str, default=CKPT_PATH, help="Path to the checkpoint file."
-    )
-    parser.add_argument(
-        "--val-every",
-        nargs="+",
-        type=int,
-        default=VAL_EVERY,
-        help="How often to validate current architecture.",
-    )
+    parser.add_argument("--evaluate", type=bool, default=EVALUATE, help="If true, only validate segmentation.")
+    parser.add_argument("--freeze-bn", type=bool, nargs="+", default=FREEZE_BN, help="Whether to keep batch norm statistics intact.")
+    parser.add_argument("--num-segm-epochs", type=int, nargs="+", default=NUM_SEGM_EPOCHS, help="Number of epochs to train for segmentation network.")
+    parser.add_argument("--print-every", type=int, default=PRINT_EVERY, help="Print information every often.")
+    parser.add_argument("--random-seed", type=int, default=RANDOM_SEED, help="Seed to provide (near-)reproducibility.")
+    parser.add_argument("--snapshot-dir", type=str, default=SNAPSHOT_DIR, help="Path to directory for storing checkpoints.")
+    parser.add_argument("--ckpt-path", type=str, default=CKPT_PATH, help="Path to the checkpoint file." )
+    parser.add_argument("--val-every", nargs="+", type=int, default=VAL_EVERY, help="How often to validate current architecture.")
 
     # Optimisers
-    parser.add_argument(
-        "--lr-enc",
-        type=float,
-        nargs="+",
-        default=LR_ENC,
-        help="Learning rate for encoder.",
-    )
-    parser.add_argument(
-        "--lr-dec",
-        type=float,
-        nargs="+",
-        default=LR_DEC,
-        help="Learning rate for decoder.",
-    )
-    parser.add_argument(
-        "--mom-enc",
-        type=float,
-        nargs="+",
-        default=MOM_ENC,
-        help="Momentum for encoder.",
-    )
-    parser.add_argument(
-        "--mom-dec",
-        type=float,
-        nargs="+",
-        default=MOM_DEC,
-        help="Momentum for decoder.",
-    )
-    parser.add_argument(
-        "--wd-enc",
-        type=float,
-        nargs="+",
-        default=WD_ENC,
-        help="Weight decay for encoder.",
-    )
-    parser.add_argument(
-        "--wd-dec",
-        type=float,
-        nargs="+",
-        default=WD_DEC,
-        help="Weight decay for decoder.",
-    )
-    parser.add_argument(
-        "--optim-dec",
-        type=str,
-        default=OPTIM_DEC,
-        help="Optimiser algorithm for decoder.",
-    )
+    parser.add_argument("--lr-enc", type=float, nargs="+", default=LR_ENC, help="Learning rate for encoder.")
+    parser.add_argument("--lr-dec", type=float, nargs="+", default=LR_DEC, help="Learning rate for decoder.")
+    parser.add_argument("--mom-enc", type=float, nargs="+", default=MOM_ENC, help="Momentum for encoder.")
+    parser.add_argument("--mom-dec", type=float, nargs="+", default=MOM_DEC, help="Momentum for decoder.")
+    parser.add_argument("--wd-enc", type=float, nargs="+", default=WD_ENC, help="Weight decay for encoder.")
+    parser.add_argument("--wd-dec", type=float, nargs="+", default=WD_DEC, help="Weight decay for decoder.")
+    parser.add_argument("--optim-dec", type=str, default=OPTIM_DEC, help="Optimiser algorithm for decoder.")
     return parser.parse_args()
 
 
