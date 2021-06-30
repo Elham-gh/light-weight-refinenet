@@ -74,6 +74,7 @@ def get_arguments():
     # Encoder
     parser.add_argument("--enc", type=str, default=ENC, help="Encoder net type.")
     parser.add_argument("--enc-pretrained", type=bool, default=ENC_PRETRAINED, help="Whether to init with imagenet weights.")
+    parser.add_argument('--resume', default='', type=str, metavar='PATH', help='path to latest checkpoint (default: none)')
     
     # General
     parser.add_argument("--evaluate", type=bool, default=EVALUATE, help="If true, only validate segmentation.")
@@ -222,21 +223,15 @@ def create_optimisers(
     return optim_enc, optim_dec
 
 
-def load_ckpt(ckpt_path, ckpt_dict):
-    best_val = epoch_start = 0
-    if os.path.exists(args.ckpt_path):
-        ckpt = torch.load(ckpt_path)
-        for (k, v) in ckpt_dict.items():
-            if k in ckpt:
-                v.load_state_dict(ckpt[k])
-        best_val = ckpt.get("best_val", 0)
-        epoch_start = ckpt.get("epoch_start", 0)
-        logger.info(
-            " Found checkpoint at {} with best_val {:.4f} at epoch {}".format(
-                ckpt_path, best_val, epoch_start
-            )
-        )
-    return best_val, epoch_start
+def load_ckpt(ckpt_path, ckpt_dict, mode):
+    PATH = ckpt_path + mode + '.pth.tar'
+    ckpt = torch.load(PATH, map_location='cpu')
+    if mode == 'numbers':
+        return ckpt.get('epoch_start', 0)
+    if mode == 'best':
+        return ckpt.get('best_val', 0)
+    if mode == 'opt':
+        return ckpt['opt_enc'], ckpt['opt_dec']
 
 
 def train_segmenter(
@@ -368,8 +363,20 @@ def main():
             args.enc, args.enc_pretrained, compute_params(segmenter) / 1e6
         )
     )
-    ## Restore if any ##
-    best_val, epoch_start = load_ckpt(args.ckpt_path, {"segmenter": segmenter})
+    # Restore if any
+    best_val, epoch_start = 0, 0
+    if args.resume:
+        saved_model = args.resume + 'model.pth.tar'
+        if os.path.isfile(saved_model):
+            segmenter.load_state_dict(torch.load(saved_model, map_location='cpu'))
+            epoch_start = load_ckpt(args.resume, None, mode='numbers')            
+            best_val = load_ckpt(args.resume, None, mode='best')   
+            print_log('Found checkpoint at {}'.format(saved_model))
+        else:
+            print_log("=> no checkpoint found at '{}'".format(args.resume))
+            return
+    epoch_current = epoch_start
+    
     ## Criterion ##
     segm_crit = nn.NLLLoss2d(ignore_index=args.ignore_label).cuda()
 
@@ -386,24 +393,13 @@ def main():
         start = time.time()
         torch.cuda.empty_cache()
         ## Create dataloaders ##
-        train_loader, val_loader = create_loaders(
-            args.train_dir,
-            args.val_dir,
-            args.train_list[task_idx],
-            args.val_list[task_idx],
-            args.shorter_side[task_idx],
-            args.crop_size[task_idx],
-            args.low_scale[task_idx],
-            args.high_scale[task_idx],
-            args.normalise_params,
-            args.batch_size[task_idx],
-            args.num_workers,
-            args.ignore_label,
-        )
+        train_loader, val_loader = create_loaders(args.train_dir, args.val_dir,
+            args.train_list[task_idx], args.val_list[task_idx], args.shorter_side[task_idx],
+            args.crop_size[task_idx], args.low_scale[task_idx], args.high_scale[task_idx],
+            args.normalise_params, args.batch_size[task_idx], args.num_workers,
+            args.ignore_label)
         if args.evaluate:
-            return validate(
-                segmenter, val_loader, 0, num_classes=args.num_classes[task_idx]
-            )
+            return validate(segmenter, val_loader, 0, num_classes=args.num_classes[task_idx])
 
         logger.info(" Training Stage {}".format(str(task_idx)))
         ## Optimisers ##
@@ -416,45 +412,28 @@ def main():
             else:
                 dec_params.append(v)
                 logger.info(" Dec. parameter: {}".format(k))
-        optim_enc, optim_dec = create_optimisers(
-            args.lr_enc[task_idx],
-            args.lr_dec[task_idx],
-            args.mom_enc[task_idx],
-            args.mom_dec[task_idx],
-            args.wd_enc[task_idx],
-            args.wd_dec[task_idx],
-            enc_params,
-            dec_params,
-            args.optim_dec,
-        )
+        optim_enc, optim_dec = create_optimisers(args.lr_enc[task_idx], 
+            args.lr_dec[task_idx], args.mom_enc[task_idx], args.mom_dec[task_idx],
+            args.wd_enc[task_idx], args.wd_dec[task_idx], enc_params,
+            dec_params, args.optim_dec)
+
+        if args.resume:
+            enc_opt, dec_opt = load_ckpt(args.resume, None, mode='opt')
+            optim_enc.load_state_dict(enc_opt)
+            optim_dec.load_state_dict(dec_opt())
+            args.resume = False
+
         for epoch in range(args.num_segm_epochs[task_idx]):
-            train_segmenter(
-                segmenter,
-                train_loader,
-                optim_enc,
-                optim_dec,
-                epoch_start,
-                segm_crit,
-                args.freeze_bn[task_idx],
-            )
+            train_segmenter(segmenter, train_loader, optim_enc, optim_dec,
+                epoch_start, segm_crit, args.freeze_bn[task_idx])
+
             if (epoch + 1) % (args.val_every[task_idx]) == 0:
-                miou = validate(
-                    segmenter, val_loader, epoch_start, args.num_classes[task_idx]
-                )
-                saver.save(
-                    miou,
-                    {"segmenter": segmenter.state_dict(), "epoch_start": epoch_start},
-                    logger,
-                )
+                miou = validate(segmenter, val_loader, epoch_start, args.num_classes[task_idx])
+                saver.save(miou, {'segmenter' : segmenter.state_dict(), 'epoch_start' : epoch_current}, {'epoch_start' : epoch_current},
+                                 {'opt_enc': optim_enc.state_dict(), 'opt_dec':optim_dec.state_dict})
             epoch_start += 1
-        logger.info(
-            "Stage {} finished, time spent {:.3f}min".format(
-                task_idx, (time.time() - start) / 60.0
-            )
-        )
-    logger.info(
-        "All stages are now finished. Best Val is {:.3f}".format(saver.best_val)
-    )
+        logger.info("Stage {} finished, time spent {:.3f}min".format(task_idx, (time.time() - start) / 60.0))
+    logger.info("All stages are now finished. Best Val is {:.3f}".format(saver.best_val))
 
 
 if __name__ == "__main__":
