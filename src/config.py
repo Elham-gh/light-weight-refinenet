@@ -1,7 +1,7 @@
 import numpy as np
 
 # DATASET PARAMETERS
-TRAIN_DIR = '/content/drive/MyDrive/datasets/nyudv2/rgb'
+TRAIN_DIR = '/content/drive/MyDrive/datasets/nyudv2/'
 VAL_DIR = TRAIN_DIR
 TRAIN_LIST = ['/content/light-weight-refinenet/data/train_CEN.nyu'] * 3
 VAL_LIST = ['/content/light-weight-refinenet/data/val_CEN.nyu'] * 3
