@@ -74,7 +74,7 @@ def get_arguments():
     # Encoder
     parser.add_argument("--enc", type=str, default=ENC, help="Encoder net type.")
     parser.add_argument("--enc-pretrained", type=bool, default=ENC_PRETRAINED, help="Whether to init with imagenet weights.")
-    parser.add_argument("--resume", default="", type=str, metavar="PATH", help="path to latest checkpoint")
+    parser.add_argument("--resume", default=RESUME, type=str, metavar="PATH", help="path to latest checkpoint")
     
     # General
     parser.add_argument("--evaluate", type=bool, default=EVALUATE, help="If true, only validate segmentation.")
@@ -82,7 +82,7 @@ def get_arguments():
     parser.add_argument("--num-segm-epochs", type=int, nargs="+", default=NUM_SEGM_EPOCHS, help="Number of epochs to train for segmentation network.")
     parser.add_argument("--print-every", type=int, default=PRINT_EVERY, help="Print information every often.")
     parser.add_argument("--random-seed", type=int, default=RANDOM_SEED, help="Seed to provide (near-)reproducibility.")
-    parser.add_argument("--snapshot-dir", type=str, default=SNAPSHOT_DIR, help="Path to directory for storing checkpoints.")
+    # parser.add_argument("--snapshot-dir", type=str, default=SNAPSHOT_DIR, help="Path to directory for storing checkpoints.")
     parser.add_argument("--ckpt-path", type=str, default=CKPT_PATH, help="Path to the checkpoint file." )
     parser.add_argument("--val-every", nargs="+", type=int, default=VAL_EVERY, help="How often to validate current architecture.")
 
@@ -111,20 +111,9 @@ def create_segmenter(net, pretrained, num_classes):
         raise ValueError("{} is not supported".format(str(net)))
 
 
-def create_loaders(
-    train_dir,
-    val_dir,
-    train_list,
-    val_list,
-    shorter_side,
-    crop_size,
-    low_scale,
-    high_scale,
-    normalise_params,
-    batch_size,
-    num_workers,
-    ignore_label,
-):
+def create_loaders(train_dir, val_dir, train_list, val_list, shorter_side,
+    crop_size, low_scale, high_scale, normalise_params, batch_size,
+    num_workers, ignore_label):
     """
     Args:
       train_dir (str) : path to the root directory of the training set.
@@ -356,29 +345,23 @@ def main():
     random.seed(args.random_seed)
     ## Generate Segmenter ##
     segmenter = nn.DataParallel(
-        create_segmenter(args.enc, args.enc_pretrained, args.num_classes[0])
-    ).cuda()
+        create_segmenter(args.enc, args.enc_pretrained, args.num_classes[0])).cuda()
     logger.info(
         " Loaded Segmenter {}, ImageNet-Pre-Trained={}, #PARAMS={:3.2f}M".format(
-            args.enc, args.enc_pretrained, compute_params(segmenter) / 1e6
-        )
-    )
+            args.enc, args.enc_pretrained, compute_params(segmenter) / 1e6))
+
     # Restore if any
     best_val, epoch_start = 0, 0
-    print('inaha', args.resume)
-    hi
     if args.resume:
-        print(369)
         saved_model = args.resume + 'model.pth.tar'
         if os.path.isfile(saved_model):
             print(372)
             segmenter.load_state_dict(torch.load(saved_model, map_location='cpu'))
             epoch_start = load_ckpt(args.resume, None, mode='numbers')            
             best_val = load_ckpt(args.resume, None, mode='best')   
-            print_log('Found checkpoint at {}'.format(saved_model))
             print('Found checkpoint at {}'.format(saved_model))
         else:
-            print_log("=> no checkpoint found at '{}'".format(args.resume))
+            print("=> no checkpoint found at '{}'".format(args.resume))
             return
     epoch_current = epoch_start
     
@@ -386,7 +369,7 @@ def main():
     segm_crit = nn.NLLLoss2d(ignore_index=args.ignore_label).cuda()
 
     ## Saver ##
-    saver = Saver(args=vars(args), ckpt_dir=args.snapshot_dir,
+    saver = Saver(args=vars(args), ckpt_dir=args.ckpt_path,
         best_val=best_val, condition=lambda x, y: x > y)  # keep checkpoint with the best validation score
 
     logger.info(" Training Process Starts")
