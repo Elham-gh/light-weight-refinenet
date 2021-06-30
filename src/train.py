@@ -308,6 +308,9 @@ def validate(segmenter, val_loader, epoch, num_classes=-1):
                 .argmax(axis=2)
                 .astype(np.uint8)
             )
+            
+            cv2.imwrite('./src/output/%s'%sample['name'][0], output)
+
             # Compute IoU
             gt = target[0].data.cpu().numpy().astype(np.uint8)
             gt_idx = (
@@ -354,6 +357,7 @@ def main():
     best_val, epoch_start = 0, 0
     if args.resume:
         saved_model = args.resume + 'model.pth.tar'
+        print(saved_model)
         if os.path.isfile(saved_model):
             print(372)
             segmenter.load_state_dict(torch.load(saved_model, map_location='cpu'))
