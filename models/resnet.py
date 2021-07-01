@@ -132,7 +132,7 @@ class ResNetLW(nn.Module):
         self.inplanes = 64
         super(ResNetLW, self).__init__()
         self.do = nn.Dropout(p=0.5)
-        self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        self.conv1 = nn.Conv2d(4, 64, kernel_size=7, stride=2, padding=3, bias=False) #***
         self.bn1 = nn.BatchNorm2d(64)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
@@ -261,10 +261,16 @@ class ResNetLW(nn.Module):
 
 def rf_lw50(num_classes, imagenet=False, pretrained=True, **kwargs):
     model = ResNetLW(Bottleneck, [3, 4, 6, 3], num_classes=num_classes, **kwargs)
+    import torch
     if imagenet:
         key = "50_imagenet"
         url = models_urls[key]
-        model.load_state_dict(maybe_download(key, url), strict=False)
+        net = maybe_download(key, url)
+        # print(net['conv1.weight'].shape)
+        conv1 = net['conv1.weight'].mean(axis=1)[:, None, :, :]
+        net['conv1.weight'] = torch.cat((net['conv1.weight'], conv1), axis=1)
+        # hi
+        model.load_state_dict(net, strict=False)
     elif pretrained:
         dataset = data_info.get(num_classes, None)
         if dataset:
