@@ -34,6 +34,7 @@ import os
 import random
 import re
 import time
+import pickle
 
 # misc
 import cv2
@@ -61,6 +62,7 @@ def get_arguments():
     parser.add_argument("--val-dir", type=str, default=VAL_DIR, help="Path to the validation set directory.")
     parser.add_argument("--train-list", type=str, nargs="+", default=TRAIN_LIST, help="Path to the training set list.")
     parser.add_argument("--val-list", type=str, nargs="+", default=VAL_LIST, help="Path to the validation set list.")
+    parser.add_argument("--bpd-dir", type=str, default=BPD_DIR, help="Path to the BPD dictionary.")
     parser.add_argument("--shorter-side", type=int, nargs="+", default=SHORTER_SIDE, help="Shorter side transformation.")
     parser.add_argument("--crop-size", type=int, nargs="+", default=CROP_SIZE, help="Crop size for training,")
     parser.add_argument("--normalise-params", type=list, default=NORMALISE_PARAMS, help="Normalisation parameters [scale, mean, std],")
@@ -111,7 +113,7 @@ def create_segmenter(net, pretrained, num_classes):
         raise ValueError("{} is not supported".format(str(net)))
 
 
-def create_loaders(train_dir, val_dir, train_list, val_list, shorter_side,
+def create_loaders(train_dir, val_dir, train_list, val_list, bpd_dir, shorter_side, #***
     crop_size, low_scale, high_scale, normalise_params, batch_size,
     num_workers, ignore_label):
     """
@@ -164,6 +166,7 @@ def create_loaders(train_dir, val_dir, train_list, val_list, shorter_side,
     trainset = Dataset(
         data_file=train_list,
         data_dir=train_dir,
+        bpd_dir=bpd_dir, #***
         transform_trn=composed_trn,
         transform_val=composed_val,
     )
@@ -171,6 +174,7 @@ def create_loaders(train_dir, val_dir, train_list, val_list, shorter_side,
     valset = Dataset(
         data_file=val_list,
         data_dir=val_dir,
+        bpd_dir=bpd_dir, #***
         transform_trn=None,
         transform_val=composed_val,
     )
@@ -378,10 +382,10 @@ def main():
         torch.cuda.empty_cache()
         ## Create dataloaders ##
         train_loader, val_loader = create_loaders(args.train_dir, args.val_dir,
-            args.train_list[task_idx], args.val_list[task_idx], args.shorter_side[task_idx],
-            args.crop_size[task_idx], args.low_scale[task_idx], args.high_scale[task_idx],
-            args.normalise_params, args.batch_size[task_idx], args.num_workers,
-            args.ignore_label)
+            args.train_list[task_idx], args.val_list[task_idx], args.bpd_dir, #***
+            args.shorter_side[task_idx], args.crop_size[task_idx], 
+            args.low_scale[task_idx], args.high_scale[task_idx], args.normalise_params, 
+            args.batch_size[task_idx], args.num_workers, args.ignore_label)
         if args.evaluate:
             return validate(segmenter, val_loader, 0, num_classes=args.num_classes[task_idx])
 
