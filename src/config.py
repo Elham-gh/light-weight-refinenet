@@ -5,7 +5,7 @@ TRAIN_DIR = '/content/drive/MyDrive/datasets/nyudv2/'
 VAL_DIR = TRAIN_DIR
 TRAIN_LIST = ['/content/light-weight-refinenet/data/train_CEN.nyu'] * 3
 VAL_LIST = ['/content/light-weight-refinenet/data/val_CEN.nyu'] * 3
-BPD_DIR = ['/content/drive/MyDrive/datasets/nyu/CEN_bpds.pkl'] * 3
+BPD_DIR = ['/content/drive/MyDrive/datasets/nyu/CEN_bpds_b.pkl'] * 3
 SHORTER_SIDE = [350] * 3
 CROP_SIZE = [500] * 3
 NORMALISE_PARAMS = [
@@ -14,7 +14,7 @@ NORMALISE_PARAMS = [
     np.array([0.229, 0.224, 0.225]).reshape((1, 1, 3)),
 ]  # STD
 BATCH_SIZE = [6] * 3
-NUM_WORKERS = 16
+NUM_WORKERS = 4
 NUM_CLASSES = [40] * 3
 LOW_SCALE = [0.5] * 3
 HIGH_SCALE = [2.0] * 3
