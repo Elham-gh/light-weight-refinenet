@@ -5,6 +5,7 @@ TRAIN_DIR = '/content/drive/MyDrive/datasets/nyudv2/'
 VAL_DIR = TRAIN_DIR
 TRAIN_LIST = ['/content/light-weight-refinenet/data/train_CEN.nyu'] * 3
 VAL_LIST = ['/content/light-weight-refinenet/data/val_CEN.nyu'] * 3
+BPD_DIR = ['/content/drive/MyDrive/datasets/nyu/CEN_bpds.pkl'] * 3
 SHORTER_SIDE = [350] * 3
 CROP_SIZE = [500] * 3
 NORMALISE_PARAMS = [
