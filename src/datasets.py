@@ -76,21 +76,8 @@ class Pad(object):
             ],
             axis=2,
         )
-
         mask = np.pad(mask, pad, mode="constant", constant_values=self.msk_val)
         bpd = np.pad(bpd, pad, mode="constant", constant_values=self.bpd_val)
-        # bpd = np.stack(
-        #     [
-        #         np.pad(
-        #             bpd[:, :, c],
-        #             pad,
-        #             mode="constant",
-        #             constant_values=self.bpd_val[c],
-        #         )
-        #         for c in range(3)
-        #     ],
-        #     axis=2,
-        # )
         return {"image": image, "mask": mask, "name": sample["name"], "bpd": bpd}
 
 
@@ -185,14 +172,14 @@ class Normalise(object):
     def __call__(self, sample):
         image = sample["image"]
         bpd = sample["bpd"]
-        bpd = (bpd - np.min(bpd)) / (np.max(bpd) - np.min(bpd))
+        image = (self.scale * image - self.mean) / self.std
+        bpd = ((bpd - np.min(bpd)) / (np.max(bpd) - np.min(bpd))) * 255
+        bpd = (self.scale * bpd - self.mean.mean(axis=2)) / self.std.mean(axis=2)
         return {
-            "image": (self.scale * image - self.mean) / self.std,
+            "image": image, 
             "mask": sample["mask"],
             "name": sample["name"],
-            # "bpd": (self.scale * bpd - self.mean) / self.std
-            "bpd": (self.scale * bpd - self.mean.mean(axis=2)) / self.std.mean(axis=2)
-
+            "bpd": bpd
         }
 
 
