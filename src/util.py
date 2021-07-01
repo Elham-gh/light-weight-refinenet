@@ -34,48 +34,48 @@ class AverageMeter(object):
         self.count += n
         self.avg = self.sum / self.count
 
-
-class Saver:
+class Saver():
     """Saver class for managing parameters"""
-
     def __init__(self, args, ckpt_dir, best_val=0, condition=lambda x, y: x > y):
         """
         Args:
             args (dict): dictionary with arguments.
             ckpt_dir (str): path to directory in which to store the checkpoint.
             best_val (float): initial best value.
-            condition (function): how to decide whether to save the new checkpoint
-                                    by comparing best value and new value (x,y).
-
+            condition (function): how to decide whether to save the new checkpoint 
+                by comparing best value and new value (x,y).
         """
         if not os.path.exists(ckpt_dir):
             os.makedirs(ckpt_dir)
-        with open("{}/args.json".format(ckpt_dir), "w") as f:
-            json.dump(
-                {k: v for k, v in args.items() if isinstance(v, (int, float, str))},
-                f,
-                sort_keys=True,
-                indent=4,
-                ensure_ascii=False,
-            )
+        with open('{}/args.json'.format(ckpt_dir), 'w') as f:
+            json.dump({k: v for k, v in args.items() if isinstance(v, (int, float, str))}, f,
+                      sort_keys = True, indent = 4, ensure_ascii = False)
         self.ckpt_dir = ckpt_dir
         self.best_val = best_val
         self.condition = condition
         self._counter = 0
+        self.model_dir = 'model'
+        self.numbers_dir = 'numbers'
+        self.optimizer_dir = 'opt'
 
     def _do_save(self, new_val):
         """Check whether need to save"""
         return self.condition(new_val, self.best_val)
 
-    def save(self, new_val, dict_to_save, logger):
+    def save(self, new_val, dict_to_save, numbers, optimizers):
         """Save new checkpoint"""
+        '''Save optimizer state'''
+        torch.save(optimizers, '{}/opt.pth.tar'.format(self.ckpt_dir))
+        '''save model state'''
+        model = dict_to_save['segmenter']
+        torch.save(model, '{}/model.pth.tar'.format(self.ckpt_dir))
+        '''save epoch number'''
+        torch.save(numbers, '{}/numbers.pth.tar'.format(self.ckpt_dir))
+        
         self._counter += 1
         if self._do_save(new_val):
-            logger.info(
-                " New best value {:.4f}, was {:.4f}".format(new_val, self.best_val)
-            )
+            # print(' New best value {:.4f}, was {:.4f}'.format(new_val, self.best_val), flush=True)
             self.best_val = new_val
-            dict_to_save["best_val"] = new_val
-            torch.save(dict_to_save, "{}/checkpoint.pth.tar".format(self.ckpt_dir))
-            return True
-        return False
+            best = dict()
+            best['best_val'] = new_val
+            torch.save(best, '{}/best.pth.tar'.format(self.ckpt_dir))
