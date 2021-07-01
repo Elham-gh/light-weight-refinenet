@@ -132,7 +132,7 @@ def create_loaders(train_dir, val_dir, train_list, val_list, bpd_dir, shorter_si
       ignore_label (int) : label to pad segmentation masks with
 
     Returns:
-      train_loader, val loader
+      train_loader, val_loader
 
     """
     # Torch libraries
@@ -149,7 +149,7 @@ def create_loaders(train_dir, val_dir, train_list, val_list, bpd_dir, shorter_si
         ToTensor,
         Normalise,
     )
-
+    
     ## Transformations during training ##
     composed_trn = transforms.Compose(
         [
@@ -252,7 +252,10 @@ def train_segmenter(
     losses = AverageMeter()
     for i, sample in enumerate(train_loader):
         start = time.time()
-        input = sample["image"].cuda()
+        image = sample['image']
+        bpd = sample['bpd'][:, None, :, :]
+
+        input = torch.cat((image, bpd), 1).cuda()
         target = sample["mask"].cuda()
         input_var = torch.autograd.Variable(input).float()
         target_var = torch.autograd.Variable(target).long()
