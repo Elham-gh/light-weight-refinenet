@@ -254,7 +254,6 @@ def train_segmenter(
         start = time.time()
         image = sample['image']
         bpd = sample['bpd'][:, None, :, :]
-
         input = torch.cat((image, bpd), 1).cuda()
         target = sample["mask"].cuda()
         input_var = torch.autograd.Variable(input).float()
@@ -301,7 +300,13 @@ def validate(segmenter, val_loader, epoch, num_classes=-1):
     cm = np.zeros((num_classes, num_classes), dtype=int)
     with torch.no_grad():
         for i, sample in enumerate(val_loader):
-            input = sample["image"]
+            # start = time.time()
+            image = sample['image']
+            bpd = sample['bpd'][:, None, :, :]
+            input = torch.cat((image, bpd), 1).cuda()
+            # target = sample["mask"].cuda()
+            
+            # input = sample["image"]
             target = sample["mask"]
             input_var = torch.autograd.Variable(input).float().cuda()
             # Compute output
