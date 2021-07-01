@@ -34,6 +34,7 @@ import warnings
 
 import cv2
 import numpy as np
+import pickle
 import torch
 from PIL import Image
 from torch.utils.data import Dataset
@@ -183,7 +184,7 @@ class ToTensor(object):
 class NYUDataset(Dataset):
     """NYUv2-40"""
 
-    def __init__(self, data_file, data_dir, transform_trn=None, transform_val=None):
+    def __init__(self, data_file, data_dir, bpd_dir, transform_trn=None, transform_val=None):
         """
         Args:
             data_file (string): Path to the data file with annotations.
@@ -193,18 +194,13 @@ class NYUDataset(Dataset):
         """
         with open(data_file, "rb") as f:###* rb
             datalist = f.readlines()
-        
-        # self.datalist = [
-        #     (k, v)
-        #     for k, v in map(
-        #         lambda x: x.decode("utf-8").strip("\n").split("\t"), datalist
-        #     )
-        # ]
         self.datalist = [i[:6].decode("utf-8") + '.png' for i in datalist]
         self.root_dir = data_dir
         self.transform_trn = transform_trn
         self.transform_val = transform_val
         self.stage = "train"
+        self.bpd_dir = bpd_dir[0]
+        self.bpds = pickle.load(open(self.bpd_dir, 'rb'))
 
     def set_stage(self, stage):
         self.stage = stage
@@ -215,7 +211,13 @@ class NYUDataset(Dataset):
     def __getitem__(self, idx):
         img_name = os.path.join(self.root_dir, 'rgb', self.datalist[idx])
         msk_name = os.path.join(self.root_dir, 'masks', self.datalist[idx])
+        name = self.datalist[idx][:6]
+        print(len(self.bpds.keys()))
 
+        # print(self.bpds)
+        bpd = self.bpds[name]
+        dear
+   
         def read_image(x):
             img_arr = np.array(Image.open(x))
             if len(img_arr.shape) == 2:  # grayscale
