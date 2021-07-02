@@ -298,6 +298,7 @@ class ResNetLW(nn.Module):
         
         out = self.clf_conv(x1)
         print('out', out.size())
+        print('bpd', bpd.size())
         hi
         return out
 
