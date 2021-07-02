@@ -242,14 +242,14 @@ def train_segmenter(
     losses = AverageMeter()
     for i, sample in enumerate(train_loader):
         start = time.time()
-        input = sample['image']
+        image = sample['image']
         bpd = sample['bpd'][:, None, :, :]
+        input = torch.cat((image, bpd), 1)
         target = sample["mask"].cuda()
         input_var = torch.autograd.Variable(input).float()
-        bpd_var = torch.autograd.Variable(bpd).float()
         target_var = torch.autograd.Variable(target).long()
         # Compute output
-        output = segmenter(input_var, bpd_var)
+        output = segmenter(input_var)
         output = nn.functional.interpolate(
             output, size=target_var.size()[1:], mode="bilinear", align_corners=False
         )
@@ -289,13 +289,13 @@ def validate(segmenter, val_loader, epoch, num_classes=-1):
     with torch.no_grad():
         for i, sample in enumerate(val_loader):
             # start = time.time()
-            input = sample['image']
+            image = sample['image']
             bpd = sample['bpd'][:, None, :, :]
+            input = torch.cat((image, bpd), 1)
             target = sample["mask"]
             input_var = torch.autograd.Variable(input).float().cuda()
-            bpd_var = torch.autograd.Variable(bpd).float().cuda()
             # Compute output
-            output = segmenter(input_var, bpd_var)
+            output = segmenter(input_var)
             output = (
                 cv2.resize(
                     output[0, :num_classes].data.cpu().numpy().transpose(1, 2, 0),
