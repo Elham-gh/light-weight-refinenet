@@ -31,7 +31,7 @@ PRINT_EVERY = 10
 RANDOM_SEED = 42
 CKPT_PATH = '/content/drive/MyDrive/Super-BPD/LWR/ckpt/'
 VAL_EVERY = [10] * 3  # how often to record validation scores
-RESUME = ''#'/content/light-weight-refinenet/ckpt/'
+RESUME = ''#'/content/drive/MyDrive/Super-BPD/LWR/ckpt/'
 
 # OPTIMISERS' PARAMETERS
 LR_ENC = [5e-4, 2.5e-4, 1e-4]  # TO FREEZE, PUT 0
