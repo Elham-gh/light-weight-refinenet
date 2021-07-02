@@ -1,20 +1,14 @@
 """RefineNet-LightWeight
-
 RefineNet-LigthWeight PyTorch for non-commercial purposes
-
 Copyright (c) 2018, Vladimir Nekrasov (vladimir.nekrasov@adelaide.edu.au)
 All rights reserved.
-
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
-
 * Redistributions of source code must retain the above copyright notice, this
   list of conditions and the following disclaimer.
-
 * Redistributions in binary form must reproduce the above copyright notice,
   this list of conditions and the following disclaimer in the documentation
   and/or other materials provided with the distribution.
-
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -130,10 +124,8 @@ def create_loaders(train_dir, val_dir, train_list, val_list, bpd_dir, shorter_si
       batch_size (int) : training batch size.
       num_workers (int) : number of workers to parallelise data loading operations.
       ignore_label (int) : label to pad segmentation masks with
-
     Returns:
       train_loader, val_loader
-
     """
     # Torch libraries
     from torchvision import transforms
@@ -231,7 +223,6 @@ def train_segmenter(
     segmenter, train_loader, optim_enc, optim_dec, epoch, segm_crit, freeze_bn
 ):
     """Training segmenter
-
     Args:
       segmenter (nn.Module) : segmentation network
       train_loader (DataLoader) : training data iterator
@@ -240,7 +231,6 @@ def train_segmenter(
       epoch (int) : current epoch
       segm_crit (nn.Loss) : segmentation criterion
       freeze_bn (bool) : whether to keep BN params intact
-
     """
     train_loader.dataset.set_stage("train")
     segmenter.train()
@@ -252,14 +242,14 @@ def train_segmenter(
     losses = AverageMeter()
     for i, sample in enumerate(train_loader):
         start = time.time()
-        image = sample['image']
+        input = sample['image']
         bpd = sample['bpd'][:, None, :, :]
-        input = torch.cat((image, bpd), 1).cuda()
         target = sample["mask"].cuda()
         input_var = torch.autograd.Variable(input).float()
+        bpd_var = torch.autograd.Variable(bpd).float()
         target_var = torch.autograd.Variable(target).long()
         # Compute output
-        output = segmenter(input_var)
+        output = segmenter(input_var, bpd_var)
         output = nn.functional.interpolate(
             output, size=target_var.size()[1:], mode="bilinear", align_corners=False
         )
@@ -285,13 +275,11 @@ def train_segmenter(
 
 def validate(segmenter, val_loader, epoch, num_classes=-1):
     """Validate segmenter
-
     Args:
       segmenter (nn.Module) : segmentation network
       val_loader (DataLoader) : training data iterator
       epoch (int) : current epoch
       num_classes (int) : number of classes to consider
-
     Returns:
       Mean IoU (float)
     """
@@ -301,16 +289,13 @@ def validate(segmenter, val_loader, epoch, num_classes=-1):
     with torch.no_grad():
         for i, sample in enumerate(val_loader):
             # start = time.time()
-            image = sample['image']
+            input = sample['image']
             bpd = sample['bpd'][:, None, :, :]
-            input = torch.cat((image, bpd), 1).cuda()
-            # target = sample["mask"].cuda()
-            
-            # input = sample["image"]
             target = sample["mask"]
             input_var = torch.autograd.Variable(input).float().cuda()
+            bpd_var = torch.autograd.Variable(bpd).float().cuda()
             # Compute output
-            output = segmenter(input_var)
+            output = segmenter(input_var, bpd_var)
             output = (
                 cv2.resize(
                     output[0, :num_classes].data.cpu().numpy().transpose(1, 2, 0),
