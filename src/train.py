@@ -249,11 +249,13 @@ def train_segmenter(
     for i, sample in enumerate(train_loader):
         start = time.time()
         input = sample["image"].cuda()
+        bpd = sample["bpd"]
         target = sample["mask"].cuda()
         input_var = torch.autograd.Variable(input).float()
+        bpd_var = torch.autograd.Variable(bpd).float()
         target_var = torch.autograd.Variable(target).long()
         # Compute output
-        output = segmenter(input_var)
+        output = segmenter(input_var, bpd_var)
         output = nn.functional.interpolate(
             output, size=target_var.size()[1:], mode="bilinear", align_corners=False
         )
