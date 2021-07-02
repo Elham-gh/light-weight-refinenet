@@ -187,7 +187,7 @@ class ResNetLW(nn.Module):
 
         return nn.Sequential(*layers)
 
-    def forward(self, x):
+    def forward(self, x, bpd):
         # print(191, x.size())
         x = self.conv1(x)
         x = self.bn1(x)
