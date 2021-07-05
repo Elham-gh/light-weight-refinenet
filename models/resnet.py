@@ -291,13 +291,8 @@ class ResNetLW(nn.Module):
         # print('b3crp', b3.size()) #[6, 512, 63, 63]
         b3 = self.conv4b(b3)
         # print('b3conv4b', b3.size()) #[6, 256, 63, 63] 
-        print(x4.size())
-        print(l3.size())
-        print(bl2.size())
-        b3 = nn.Upsample(size=bl2.size()[2:], mode="bilinear, alighn_corners=True")(b3)
-
-        print('b3usampled', b3.size())
-        hi
+        b3 = nn.Upsample(size=bl2.size()[2:], mode="bilinear", align_corners=True)(b3)
+        # print('b3usampled', b3.size()) #[6, 256, 125, 125]
 
 
         x3 = self.p_ims1d2_outl2_dimred(l3)
