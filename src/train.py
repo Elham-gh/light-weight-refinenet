@@ -191,19 +191,19 @@ def create_loaders(train_dir, val_dir, train_list, val_list, bpd_dir, shorter_si
 
 
 def create_optimisers(
-    lr_enc, lr_dec, param_enc, param_dec, optim_dec
+    lr_enc, lr_dec, mom_enc, mom_dec, wd_enc, wd_dec, param_enc, param_dec, optim_dec
 ):
     """Create optimisers for encoder, decoder and controller"""
     optim_enc = torch.optim.SGD(
-        param_enc, lr=lr_enc
+        param_enc, lr=lr_enc, momentum=mom_enc, weight_decay=wd_enc
     )
     if optim_dec == "sgd":
         optim_dec = torch.optim.SGD(
-            param_dec, lr=lr_dec
+            param_dec, lr=lr_dec, momentum=mom_dec, weight_decay=wd_dec
         )
     elif optim_dec == "adam":
         optim_dec = torch.optim.Adam(
-            param_dec, lr=lr_dec, eps=1e-3
+            param_dec, lr=lr_dec, weight_decay=wd_dec, eps=1e-3
         )
     return optim_enc, optim_dec
 
@@ -244,6 +244,7 @@ def train_segmenter(
         start = time.time()
         image = sample['image']
         bpd = sample['bpd'][:, None, :, :]
+        
         input = torch.cat((image, bpd), 1)
         target = sample["mask"].cuda()
         input_var = torch.autograd.Variable(input).float()
@@ -394,7 +395,8 @@ def main():
                 dec_params.append(v)
                 logger.info(" Dec. parameter: {}".format(k))
         optim_enc, optim_dec = create_optimisers(args.lr_enc[task_idx], 
-            args.lr_dec[task_idx], enc_params,
+            args.lr_dec[task_idx], args.mom_enc[task_idx], args.mom_dec[task_idx],
+            args.wd_enc[task_idx], args.wd_dec[task_idx], enc_params,
             dec_params, args.optim_dec)
 
         if args.resume:
