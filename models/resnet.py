@@ -131,14 +131,14 @@ class Bottleneck(nn.Module):
 
 class Self_Attn(nn.Module):
     """ Self attention Layer"""
-    def __init__(self, in_dim, activation):
+    def __init__(self, in_dim, activation=None):
         super(Self_Attn, self).__init__()
         
         self.chanel_in = in_dim
         self.activation = activation
         
-        self.query_conv = nn.Conv2d(in_channels = in_dim , out_channels = in_dim//8 , kernel_size= 1) ###*  out_channels check
-        self.key_conv = nn.Conv2d(in_channels = in_dim , out_channels = in_dim//8 , kernel_size= 1) ###* out_channels check
+        self.query_conv = nn.Conv2d(in_channels = in_dim , out_channels = in_dim , kernel_size= 1) ###*  out_channels check
+        self.key_conv = nn.Conv2d(in_channels = in_dim , out_channels = in_dim , kernel_size= 1) ###* out_channels check
         self.value_conv = nn.Conv2d(in_channels = in_dim , out_channels = in_dim , kernel_size= 1)
         self.gamma = nn.Parameter(torch.zeros(1))
 
@@ -156,18 +156,23 @@ class Self_Attn(nn.Module):
         
         m_batchsize, C, width, height = x.size()
         proj_query  = self.query_conv(b).view(m_batchsize,-1,width*height).permute(0,2,1) # B X C X (N) #***
+        # print('query', proj_query.size()) #[2, 15625, 256]
         proj_key =  self.key_conv(x).view(m_batchsize,-1,width*height) # B X C x (*W*H)
+        # print('key', proj_key.size()) #[2, 256, 15625]
         energy =  torch.bmm(proj_query, proj_key) # transpose check #???
+        # print('energy', energy.size()) #[2, 15625, 15625]
         attention = self.softmax(energy) # B X (N) X (N) 
+        # print('attention', attention.size()) # [2, 15625, 15625]
         proj_value = self.value_conv(x).view(m_batchsize,-1,width*height) # B X C X N
+        # print('value', proj_value.size()) #[2, 256, 15625]
 
         out = torch.bmm(proj_value, attention.permute(0,2,1))
         out = out.view(m_batchsize, C, width, height)
+        # print('out', out.size()) #[2, 256, 125, 125]
         
-        out = self.gamma * out + x
-        return out, attention      
+        out = self.gamma * out + x #residual connection
+        return out#, attention      
       
-
 
 class ResNetLW(nn.Module):
     def __init__(self, block, layers, num_classes=21):
@@ -336,12 +341,15 @@ class ResNetLW(nn.Module):
         x1 = x1 + x2
         x1 = F.relu(x1)
         x1 = self.mflow_conv_g4_pool(x1)
-        # print('mflow_conv_g4_pool-x1', x1.size()) #[6, 256, 125, 125]
+        # print('x1', x1.size()) #[6, 256, 125, 125]
+        # print('bpd', b2.size()) #[6, 256, 125, 125]
+        MHA = Self_Attn(256, '')
+        MHA.cuda()
+        x = MHA(x1, b2)
+        # print('att', x.size()) #[2, 256, 125, 125]
         
-        out = self.clf_conv(x1)
-        # print('out', out.size()) #[6, 40, 125, 125]
-        # print('bpd', bpd.size()) #[6, 1, 500, 500]
-        
+        out = self.clf_conv(x)
+        # print('out', out.size()) #[6, 40, 125, 125]        
         return out
 
 
