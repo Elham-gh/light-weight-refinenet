@@ -180,6 +180,8 @@ class ResNetLW(nn.Module):
         self.conv3b = conv1x1(512, 512, bias=False)
         self.b3crp = self._make_crp(512, 512, 4)
         self.conv4b = conv1x1(512, 256, bias=False)
+        self.conv5b = conv1x1(512, 256, bias=False)
+        self.conv6b = conv1x1(256, 256, bias=False)
 
         self.bn1 = nn.BatchNorm2d(64)
         self.relu = nn.ReLU(inplace=True)
@@ -308,32 +310,38 @@ class ResNetLW(nn.Module):
         x3 = nn.Upsample(size=l2.size()[2:], mode="bilinear", align_corners=True)(x3)
         # print('275-x3', x3.size()) #[6, 256, 63, 63]
 
+        b2 = self.conv5b(bl2)
+        # print('5b', b2.size()) #[6, 256, 125, 125]
+        b2 = self.conv6b(b2)
+        # print('6b', b2.size()) #[6, 256, 125, 125]
+        b2 = b3 + b2 #[6, 256, 125, 125]
+
         x2 = self.p_ims1d2_outl3_dimred(l2)
-        print('p_ims1d2_outl3_dimred-x2', x2.size()) #[6, 256, 63, 63]
+        # print('p_ims1d2_outl3_dimred-x2', x2.size()) #[6, 256, 63, 63]
         x2 = self.adapt_stage3_b2_joint_varout_dimred(x2)
-        print('adapt_stage3_b2_joint_varout_dimred-x2', x2.size()) #[6, 256, 63, 63]
+        # print('adapt_stage3_b2_joint_varout_dimred-x2', x2.size()) #[6, 256, 63, 63]
         x2 = x2 + x3
         x2 = F.relu(x2)
         x2 = self.mflow_conv_g3_pool(x2)
-        print('mflow_conv_g3_pool-x2', x2.size()) #[6, 256, 63, 63]
+        # print('mflow_conv_g3_pool-x2', x2.size()) #[6, 256, 63, 63]
         x2 = self.mflow_conv_g3_b3_joint_varout_dimred(x2)
-        print('mflow_conv_g3_b3_joint_varout_dimred-x2', x2.size()) #[6, 256, 63, 63]
+        # print('mflow_conv_g3_b3_joint_varout_dimred-x2', x2.size()) #[6, 256, 63, 63]
         x2 = nn.Upsample(size=l1.size()[2:], mode="bilinear", align_corners=True)(x2)
-        print('288-x2', x2.size()) #[6, 256, 125, 125]
+        # print('288-x2', x2.size()) #[6, 256, 125, 125]
 
         x1 = self.p_ims1d2_outl4_dimred(l1)
-        print('p_ims1d2_outl4_dimred-x1', x1.size()) #[6, 256, 125, 125]
+        # print('p_ims1d2_outl4_dimred-x1', x1.size()) #[6, 256, 125, 125]
         x1 = self.adapt_stage4_b2_joint_varout_dimred(x1)
-        print('adapt_stage4_b2_joint_varout_dimred-x1', x1.size()) #[6, 256, 125, 125]
+        # print('adapt_stage4_b2_joint_varout_dimred-x1', x1.size()) #[6, 256, 125, 125]
         x1 = x1 + x2
         x1 = F.relu(x1)
         x1 = self.mflow_conv_g4_pool(x1)
-        print('mflow_conv_g4_pool-x1', x1.size()) #[6, 256, 125, 125]
+        # print('mflow_conv_g4_pool-x1', x1.size()) #[6, 256, 125, 125]
         
         out = self.clf_conv(x1)
-        print('out', out.size()) #[6, 40, 125, 125]
-        print('bpd', bpd.size()) #[6, 1, 500, 500]
-        hi
+        # print('out', out.size()) #[6, 40, 125, 125]
+        # print('bpd', bpd.size()) #[6, 1, 500, 500]
+        
         return out
 
 
