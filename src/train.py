@@ -240,6 +240,7 @@ def train_segmenter(
                 m.eval()
     batch_time = AverageMeter()
     losses = AverageMeter()
+    l = []
     for i, sample in enumerate(train_loader):
         start = time.time()
         image = sample['image']
@@ -272,6 +273,9 @@ def train_segmenter(
                     epoch, i, len(train_loader), losses.avg, batch_time.avg
                 )
             )
+        l.append(losses.avg)
+    l = np.mean(np.array(l))
+    return l
 
 
 def validate(segmenter, val_loader, epoch, num_classes=-1):
@@ -371,6 +375,9 @@ def main():
         best_val=best_val, condition=lambda x, y: x > y)  # keep checkpoint with the best validation score
 
     logger.info(" Training Process Starts")
+    loss_list = []
+    iou = []
+
     for task_idx in range(args.num_stages):
         start = time.time()
         torch.cuda.empty_cache()
@@ -407,18 +414,33 @@ def main():
             print('optimizer loaded')
 
         for epoch in range(args.num_segm_epochs[task_idx]):
-            train_segmenter(segmenter, train_loader, optim_enc, optim_dec,
+            l = train_segmenter(segmenter, train_loader, optim_enc, optim_dec,
                 epoch_start, segm_crit, args.freeze_bn[task_idx])
-
+            loss_list.append(l)
+            print(loss_list)
+            
             if (epoch + 1) % (args.val_every[task_idx]) == 0:
                 miou = validate(segmenter, val_loader, epoch_start, args.num_classes[task_idx])
                 saver.save(miou, {'segmenter' : segmenter.state_dict(), 'epoch_start' : epoch_current}, {'epoch_start' : epoch_current},
                                  {'opt_enc': optim_enc.state_dict(), 'opt_dec':optim_dec.state_dict})
+                iou.append(miou)
+
+            
+            if epoch_start == 89:
+                with open('./super_1.txt', 'w') as f:
+                    for i in loss_list:
+                      f.write(str(i) + '\n')
+                with open('./iou_1.txt', 'w') as g:
+                    for i in loss_list:
+                      g.write(str(i) + '\n')
+                hi    
+            
             epoch_start += 1
         logger.info("Stage {} finished, time spent {:.3f}min".format(task_idx, (time.time() - start) / 60.0))
     logger.info("All stages are now finished. Best Val is {:.3f}".format(saver.best_val))
-
-
+    
+          
+        
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     main()
