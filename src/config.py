@@ -27,7 +27,7 @@ ENC_PRETRAINED = True  # pre-trained on ImageNet or randomly initialised
 # GENERAL
 EVALUATE = False
 FREEZE_BN = [True] * 3
-NUM_SEGM_EPOCHS = [100] * 3
+NUM_SEGM_EPOCHS = [150] * 3
 PRINT_EVERY = 10
 RANDOM_SEED = 42
 CKPT_PATH = '/content/drive/MyDrive/Super-BPD/LWR/ckpt4/'
@@ -36,9 +36,9 @@ RESUME = ''#'/content/drive/MyDrive/Super-BPD/LWR/ckpt4/'
 
 # OPTIMISERS' PARAMETERS
 LR_ENC = [5e-4, 2.5e-4, 1e-4]  # TO FREEZE, PUT 0
-LR_DEC = [5e-3, 2.5e-3, 1e-3]
-MOM_ENC = [0.9] * 3  # TO FREEZE, PUT 0
-MOM_DEC = [0.9] * 3
+LR_DEC = [5e-1, 2.5e-1, 1e-1]
+MOM_ENC = [0] * 3  # TO FREEZE, PUT 0
+MOM_DEC = [0] * 3
 WD_ENC = [1e-5] * 3  # TO FREEZE, PUT 0
 WD_DEC = [1e-5] * 3
 OPTIM_DEC = "sgd"
