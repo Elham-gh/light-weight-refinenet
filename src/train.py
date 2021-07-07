@@ -249,6 +249,10 @@ def train_segmenter(
     batch_time = AverageMeter()
     losses = AverageMeter()
     l = []
+    for param_group in optim_enc.param_groups:
+        lr_enc = param_group['lr']
+    for param_group in optim_dec.param_groups:
+        lr_dec = param_group['lr']
     for i, sample in enumerate(train_loader):
         start = time.time()
         image = sample['image']
@@ -278,8 +282,10 @@ def train_segmenter(
             logger.info(
                 " Train epoch: {} [{}/{}]\t"
                 "Avg. Loss: {:.3f}\t"
+                "LR_enc: {:.3f}\t"
+                "LR_dec: {:.3f}\t"
                 "Avg. Time: {:.3f}".format(
-                    epoch, i, len(train_loader), losses.avg, batch_time.avg
+                    epoch, i, len(train_loader), losses.avg, lr_enc, lr_dec, batch_time.avg
                 )
             )
         l.append(losses.avg)
@@ -415,6 +421,9 @@ def main():
             args.wd_enc[task_idx], args.wd_dec[task_idx], enc_params,
             dec_params, args.optim_dec)
 
+        scheduler_enc = torch.optim.lr_scheduler.MultiStepLR(optim_enc, milestones=[110, 115, 117], gamma=0.8)
+        scheduler_dec = torch.optim.lr_scheduler.MultiStepLR(optim_dec, milestones=[110, 115, 117], gamma=0.8)
+
         if args.resume:
             enc_opt, dec_opt = load_ckpt(args.resume, None, mode='opt')
             optim_enc.load_state_dict(enc_opt)
@@ -427,6 +436,9 @@ def main():
                 epoch_start, segm_crit, args.freeze_bn[task_idx])
             loss_list.append(l)
             
+            scheduler_enc.step()
+            scheduler_dec.step()
+
             if (epoch + 1) % (args.val_every[task_idx]) == 0:
                 miou = validate(segmenter, val_loader, epoch_start, args.num_classes[task_idx])
                 saver.save(miou, {'segmenter' : segmenter.state_dict(), 'epoch_start' : epoch_current}, {'epoch_start' : epoch_current},
