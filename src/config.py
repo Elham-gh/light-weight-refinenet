@@ -30,7 +30,7 @@ FREEZE_BN = [True] * 3
 NUM_SEGM_EPOCHS = [150] * 3
 PRINT_EVERY = 10
 RANDOM_SEED = 42
-CKPT_PATH = '/content/drive/MyDrive/Super-BPD/LWR/ckpt4/'
+CKPT_PATH = '' #'/content/drive/MyDrive/Super-BPD/LWR/ckpt4/'
 VAL_EVERY = [10] * 3  # how often to record validation scores
 RESUME = ''#'/content/drive/MyDrive/Super-BPD/LWR/ckpt4/'
 
