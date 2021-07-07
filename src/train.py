@@ -205,6 +205,14 @@ def create_optimisers(
         optim_dec = torch.optim.Adam(
             param_dec, lr=lr_dec, weight_decay=wd_dec, eps=1e-3
         )
+    elif optim_dec == "adagrad":
+        optim_dec = torch.optim.Adagrad(
+            param_dec, lr=lr_dec, weight_decay=wd_dec, eps=1e-3
+        )
+    elif optim_dec == "rms":
+        optim_dec = torch.optim.RMSprop(
+            param_dec, lr=lr_dec, weight_decay=wd_dec, momentum=mom_dec, eps=1e-3
+        )
     return optim_enc, optim_dec
 
 
