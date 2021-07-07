@@ -205,7 +205,7 @@ def create_optimisers(
         optim_dec = torch.optim.Adam(
             param_dec, lr=lr_dec, weight_decay=wd_dec, eps=1e-3
         )
-    elif optim_dec == "adagrad":
+    elif optim_dec == "ada":
         optim_dec = torch.optim.Adagrad(
             param_dec, lr=lr_dec, weight_decay=wd_dec, eps=1e-3
         )
@@ -269,6 +269,7 @@ def train_segmenter(
         optim_enc.zero_grad()
         optim_dec.zero_grad()
         loss.backward()
+        torch.nn.utils.clip_grad_norm_(segmenter.parameters(), 0.5)
         optim_enc.step()
         optim_dec.step()
         losses.update(loss.item())
@@ -425,7 +426,6 @@ def main():
             l = train_segmenter(segmenter, train_loader, optim_enc, optim_dec,
                 epoch_start, segm_crit, args.freeze_bn[task_idx])
             loss_list.append(l)
-            print(loss_list)
             
             if (epoch + 1) % (args.val_every[task_idx]) == 0:
                 miou = validate(segmenter, val_loader, epoch_start, args.num_classes[task_idx])
@@ -435,18 +435,24 @@ def main():
 
             
             if epoch_start == 89:
-                with open('./super_1.txt', 'w') as f:
+                with open('./rms_loss_90.txt', 'w') as f:
                     for i in loss_list:
-                      f.write(str(i) + '\n')
-                with open('./iou_1.txt', 'w') as g:
+                        f.write(str(i) + '\n')
+                with open('./rms_iou_90.txt', 'w') as g:
                     for i in loss_list:
-                      g.write(str(i) + '\n')
-                hi    
+                        g.write(str(i) + '\n')
+                    
             
             epoch_start += 1
         logger.info("Stage {} finished, time spent {:.3f}min".format(task_idx, (time.time() - start) / 60.0))
     logger.info("All stages are now finished. Best Val is {:.3f}".format(saver.best_val))
-    
+
+    with open('./rms_loss.txt', 'w') as f:
+        for i in loss_list:
+            f.write(str(i) + '\n')
+    with open('./rms_iou.txt', 'w') as g:
+        for i in loss_list:
+            g.write(str(i) + '\n') 
           
         
 if __name__ == "__main__":
