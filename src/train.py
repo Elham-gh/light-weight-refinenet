@@ -430,7 +430,7 @@ def main():
             if (epoch + 1) % (args.val_every[task_idx]) == 0:
                 miou = validate(segmenter, val_loader, epoch_start, args.num_classes[task_idx])
                 saver.save(miou, {'segmenter' : segmenter.state_dict(), 'epoch_start' : epoch_current}, {'epoch_start' : epoch_current},
-                                 {'opt_enc': optim_enc.state_dict(), 'opt_dec':optim_dec.state_dict})
+                                 {'opt_enc': optim_enc.state_dict(), 'opt_dec':optim_dec.state_dict()})
                 iou.append(miou)
 
             
