@@ -220,7 +220,7 @@ def load_ckpt(ckpt_path, ckpt_dict, mode):
     PATH = ckpt_path + mode + '.pth.tar'
     ckpt = torch.load(PATH, map_location='cpu')
     if mode == 'numbers':
-        return ckpt.get('epoch_start', 0)
+        return ckpt['epoch_start']
     if mode == 'best':
         return ckpt.get('best_val', 0)
     if mode == 'opt':
@@ -288,9 +288,9 @@ def train_segmenter(
                     epoch, i, len(train_loader), losses.avg, lr_enc, lr_dec, batch_time.avg
                 )
             )
-        l.append(losses.avg)
-    l = np.mean(np.array(l))
-    return l
+    #     l.append(losses.avg)
+    # l = np.mean(np.array(l))
+    # return l
 
 
 def validate(segmenter, val_loader, epoch, num_classes=-1):
@@ -372,14 +372,14 @@ def main():
     if args.resume:
         saved_model = args.resume + 'model.pth.tar'
         if os.path.isfile(saved_model):
-            print(372)
             segmenter.load_state_dict(torch.load(saved_model, map_location='cpu'))
-            epoch_start = load_ckpt(args.resume, None, mode='numbers')            
+            epoch_start = load_ckpt(args.resume, None, mode='numbers')  
             best_val = load_ckpt(args.resume, None, mode='best')   
             print('Found checkpoint at {}'.format(saved_model))
         else:
             print("=> no checkpoint found at '{}'".format(args.resume))
             return
+    epoch_start = 110
     epoch_current = epoch_start
     
     ## Criterion ##
@@ -422,7 +422,7 @@ def main():
             dec_params, args.optim_dec)
         
         scheduler_enc = torch.optim.lr_scheduler.MultiStepLR(optim_enc, milestones=[5], gamma=0.1)
-        scheduler_dec = torch.optim.lr_scheduler.MultiStepLR(optim_dec, milestones=[5], gamma=0.1)
+        # scheduler_dec = torch.optim.lr_scheduler.MultiStepLR(optim_dec, milestones=[5], gamma=0.1)
 
         if args.resume:
             enc_opt, dec_opt = load_ckpt(args.resume, None, mode='opt')
@@ -432,39 +432,42 @@ def main():
             print('optimizer loaded')
 
         for epoch in range(args.num_segm_epochs[task_idx]):
-            l = train_segmenter(segmenter, train_loader, optim_enc, optim_dec,
+            print('epoch_start', epoch_start, 'epoch_current', epoch_current)
+            train_segmenter(segmenter, train_loader, optim_enc, optim_dec,
                 epoch_start, segm_crit, args.freeze_bn[task_idx])
-            loss_list.append(l)
-            if task_idx > 0:
-                scheduler_enc.step()
-                scheduler_dec.step()
+            # loss_list.append(l)
+            # if task_idx > 0:
+            #     scheduler_enc.step()
+            #     # scheduler_dec.step()
+            #     if epoch == 5:
+            #       print('***********schedule step')
 
             if (epoch + 1) % (args.val_every[task_idx]) == 0:
                 miou = validate(segmenter, val_loader, epoch_start, args.num_classes[task_idx])
-                saver.save(miou, {'segmenter' : segmenter.state_dict(), 'epoch_start' : epoch_current}, {'epoch_start' : epoch_current},
+                saver.save(miou, {'segmenter' : segmenter.state_dict()}, {'epoch_start' : epoch_start},
                                  {'opt_enc': optim_enc.state_dict(), 'opt_dec':optim_dec.state_dict()})
-                iou.append(miou)
+                # iou.append(miou)
 
             
-            if epoch_start == 89:
-                with open('./rms_loss_90.txt', 'w') as f:
-                    for i in loss_list:
-                        f.write(str(i) + '\n')
-                with open('./rms_iou_90.txt', 'w') as g:
-                    for i in loss_list:
-                        g.write(str(i) + '\n')
+            # if epoch_start == 89:
+            #     with open('./rms_loss_90.txt', 'w') as f:
+            #         for i in loss_list:
+            #             f.write(str(i) + '\n')
+            #     with open('./rms_iou_90.txt', 'w') as g:
+            #         for i in loss_list:
+            #             g.write(str(i) + '\n')
                     
             
             epoch_start += 1
         logger.info("Stage {} finished, time spent {:.3f}min".format(task_idx, (time.time() - start) / 60.0))
     logger.info("All stages are now finished. Best Val is {:.3f}".format(saver.best_val))
 
-    with open('./rms_loss.txt', 'w') as f:
-        for i in loss_list:
-            f.write(str(i) + '\n')
-    with open('./rms_iou.txt', 'w') as g:
-        for i in loss_list:
-            g.write(str(i) + '\n') 
+    # with open('./rms_loss.txt', 'w') as f:
+    #     for i in loss_list:
+    #         f.write(str(i) + '\n')
+    # with open('./rms_iou.txt', 'w') as g:
+    #     for i in loss_list:
+    #         g.write(str(i) + '\n') 
           
         
 if __name__ == "__main__":
