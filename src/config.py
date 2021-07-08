@@ -36,10 +36,10 @@ RESUME = '/content/drive/MyDrive/Super-BPD/LWR/lr_ckpt/'
 
 # OPTIMISERS' PARAMETERS
 LR_ENC = [1e-2, 5e-4, 2.5e-3]  # TO FREEZE, PUT 0
-LR_DEC = [1e-1, 5e-4, 2.5e-2]
+LR_DEC = [1e-1, 5e-3, 2.5e-2]
 
-MOM_ENC = [0.9, 0, 0.2]  # TO FREEZE, PUT 0
-MOM_DEC = [0.9, 0, 0.2] 
+MOM_ENC = [0.9, 0.5, 0.2]  # TO FREEZE, PUT 0
+MOM_DEC = [0.9, 0.5, 0.2] 
 WD_ENC = [1e-5] * 3  # TO FREEZE, PUT 0
 WD_DEC = [1e-5] * 3
 OPTIM_DEC = "sgd"
