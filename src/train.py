@@ -393,7 +393,7 @@ def main():
     loss_list = []
     iou = []
 
-    for task_idx in range(args.num_stages):
+    for task_idx in [1, 2]:
         start = time.time()
         torch.cuda.empty_cache()
         ## Create dataloaders ##
@@ -420,14 +420,14 @@ def main():
             args.lr_dec[task_idx], args.mom_enc[task_idx], args.mom_dec[task_idx],
             args.wd_enc[task_idx], args.wd_dec[task_idx], enc_params,
             dec_params, args.optim_dec)
-
-        scheduler_enc = torch.optim.lr_scheduler.MultiStepLR(optim_enc, milestones=[10, 13, 16], gamma=0.5)
-        scheduler_dec = torch.optim.lr_scheduler.MultiStepLR(optim_dec, milestones=[10, 13, 16], gamma=0.5)
+        
+        scheduler_enc = torch.optim.lr_scheduler.MultiStepLR(optim_enc, milestones=[5], gamma=0.1)
+        scheduler_dec = torch.optim.lr_scheduler.MultiStepLR(optim_dec, milestones=[5], gamma=0.1)
 
         if args.resume:
             enc_opt, dec_opt = load_ckpt(args.resume, None, mode='opt')
             optim_enc.load_state_dict(enc_opt)
-            optim_dec.load_state_dict(dec_opt())
+            optim_dec.load_state_dict(dec_opt)
             args.resume = False
             print('optimizer loaded')
 
