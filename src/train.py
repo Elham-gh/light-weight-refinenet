@@ -220,9 +220,7 @@ def load_ckpt(ckpt_path, ckpt_dict, mode):
     PATH = ckpt_path + mode + '.pth.tar'
     ckpt = torch.load(PATH, map_location='cpu')
     if mode == 'numbers':
-        return ckpt['epoch_start']
-    if mode == 'best':
-        return ckpt.get('best_val', 0)
+        return ckpt['epoch_start'], ckpt['task_idx_start'], ckpt['best_val']
     if mode == 'opt':
         return ckpt['opt_enc'], ckpt['opt_dec']
 
@@ -248,7 +246,7 @@ def train_segmenter(
                 m.eval()
     batch_time = AverageMeter()
     losses = AverageMeter()
-    l = []
+    # l = []
     lr_enc = optim_enc.param_groups[0]['lr']
     lr_dec = optim_dec.param_groups[0]['lr']
 
@@ -256,7 +254,6 @@ def train_segmenter(
         start = time.time()
         image = sample['image']
         bpd = sample['bpd'][:, None, :, :]
-        
         input = torch.cat((image, bpd), 1)
         target = sample["mask"].cuda()
         input_var = torch.autograd.Variable(input).float()
@@ -372,12 +369,13 @@ def main():
         saved_model = args.resume + 'model.pth.tar'
         if os.path.isfile(saved_model):
             segmenter.load_state_dict(torch.load(saved_model, map_location='cpu'))
-            epoch_start = load_ckpt(args.resume, None, mode='numbers')  
-            best_val = load_ckpt(args.resume, None, mode='best')   
+            epoch_start, task_idx_start, best_val = load_ckpt(args.resume, None, mode='numbers')  
             print('Found checkpoint at {}'.format(saved_model))
         else:
             print("=> no checkpoint found at '{}'".format(args.resume))
             return
+    else:
+        task_idx_start = 0
     epoch_current = epoch_start
     
     ## Criterion ##
@@ -390,8 +388,9 @@ def main():
     logger.info(" Training Process Starts")
     # loss_list = []
     # iou = []
-
-    for task_idx in range(args.num_stages):
+    
+    for task_idx in range(task_idx_start, args.num_stages):
+        task_idx_start = task_idx
         start = time.time()
         torch.cuda.empty_cache()
         ## Create dataloaders ##
@@ -442,7 +441,8 @@ def main():
 
             if (epoch + 1) % (args.val_every[task_idx]) == 0:
                 miou = validate(segmenter, val_loader, epoch_start, args.num_classes[task_idx])
-                saver.save(miou, {'segmenter' : segmenter.state_dict()}, {'epoch_start' : epoch_start},
+                saver.save(miou, {'segmenter' : segmenter.state_dict()}, 
+                                 {'epoch_start' : epoch_start, 'task_idx_start': task_idx_start},
                                  {'opt_enc': optim_enc.state_dict(), 'opt_dec':optim_dec.state_dict()})    
             
             epoch_start += 1
