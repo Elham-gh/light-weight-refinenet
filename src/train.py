@@ -246,7 +246,7 @@ def train_segmenter(
                 m.eval()
     batch_time = AverageMeter()
     losses = AverageMeter()
-    # l = []
+    l = []
     lr_enc = optim_enc.param_groups[0]['lr']
     lr_dec = optim_dec.param_groups[0]['lr']
 
@@ -285,9 +285,9 @@ def train_segmenter(
                     epoch, i, len(train_loader), losses.avg, lr_enc, lr_dec, batch_time.avg
                 )
             )
-    #     l.append(losses.avg)
-    # l = np.mean(np.array(l))
-    # return l
+        l.append(losses.avg)
+    l = np.mean(np.array(l))
+    return l
 
 
 def validate(segmenter, val_loader, epoch, num_classes=-1):
@@ -432,7 +432,7 @@ def main():
 
         for epoch in range(args.num_segm_epochs[task_idx]):
             # print('epoch_start', epoch_start, 'epoch_current', epoch_current)
-            train_segmenter(segmenter, train_loader, optim_enc, optim_dec,
+            loss_train = train_segmenter(segmenter, train_loader, optim_enc, optim_dec,
                 epoch_start, segm_crit, args.freeze_bn[task_idx])
             # schedule learning rate 
             # if task_idx > 0:
@@ -440,6 +440,11 @@ def main():
             #     # scheduler_dec.step()
             #     if epoch == 5:
             #       print('***********schedule step')
+            
+            # if epoch_start == 129:
+            #     with open('./depth_loss.txt', 'w') as f:
+            #         for i in loss_train:
+            #             f.write(str(i) + '\n')
 
             if (epoch + 1) % (args.val_every[task_idx]) == 0:
                 miou = validate(segmenter, val_loader, epoch_start, args.num_classes[task_idx])
