@@ -52,11 +52,12 @@ class Pad(object):
 
     """
 
-    def __init__(self, size, img_val, msk_val):
+    def __init__(self, size, img_val, msk_val): ###????***
         self.size = size
         self.img_val = img_val
         self.msk_val = msk_val
         self.bpd_val = np.mean(img_val)
+        self.dpt_val = np.mean(img_val)
 
     def __call__(self, sample):
         image, mask, bpd, depth = sample["image"], sample["mask"], sample["bpd"], sample["depth"]
@@ -78,7 +79,7 @@ class Pad(object):
         )
         mask = np.pad(mask, pad, mode="constant", constant_values=self.msk_val)
         bpd = np.pad(bpd, pad, mode="constant", constant_values=self.bpd_val)
-        depth = np.pad(depth, pad, mode="constant", constant_values=self.depth_val)
+        depth = np.pad(depth, pad, mode="constant", constant_values=self.dpt_val)
         return {"image": image, "mask": mask, "name": sample["name"], "bpd": bpd, "depth":depth}
 
 
