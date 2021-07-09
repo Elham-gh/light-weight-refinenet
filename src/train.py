@@ -379,7 +379,6 @@ def main():
         else:
             print("=> no checkpoint found at '{}'".format(args.resume))
             return
-    epoch_start = 110
     epoch_current = epoch_start
     
     ## Criterion ##
@@ -393,7 +392,7 @@ def main():
     loss_list = []
     iou = []
 
-    for task_idx in [1, 2]:
+    for task_idx in range(args.num_stages):
         start = time.time()
         torch.cuda.empty_cache()
         ## Create dataloaders ##
