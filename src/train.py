@@ -228,7 +228,7 @@ def load_ckpt(ckpt_path, ckpt_dict, mode):
 
 
 def train_segmenter(
-    segmenter, train_loader, optim_enc, optim_dec, epoch, segm_crit, freeze_bn
+    segmenter, train_loader, optim_enc, optim_dec, epoch, segm_crit, freeze_bn, alpha
 ):
     """Training segmenter
     Args:
@@ -253,11 +253,26 @@ def train_segmenter(
         lr_enc = param_group['lr']
     for param_group in optim_dec.param_groups:
         lr_dec = param_group['lr']
+        
+    los = []
+    lr_e = []
+    lr_d = []
+
     for i, sample in enumerate(train_loader):
+        alpha 
+        lr_encoder = optim_enc.param_groups[0]['lr'] + .1 * alpha
+        lr_decoder = optim_dec.param_groups[0]['lr'] + alpha
+        lr_e.append(lr_encoder)
+        lr_d.append(lr_decoder)
+        alpha += .00001 
+        for param_group in optim_enc.param_groups:
+            param_group['lr'] = lr_encoder
+        for param_group in optim_dec.param_groups:
+            param_group['lr'] = lr_decoder
+
         start = time.time()
         image = sample['image']
         bpd = sample['bpd'][:, None, :, :]
-        
         input = torch.cat((image, bpd), 1)
         target = sample["mask"].cuda()
         input_var = torch.autograd.Variable(input).float()
@@ -278,19 +293,22 @@ def train_segmenter(
         optim_dec.step()
         losses.update(loss.item())
         batch_time.update(time.time() - start)
+        los.append(loss.item())
         if i % args.print_every == 0:
             logger.info(
                 " Train epoch: {} [{}/{}]\t"
                 "Avg. Loss: {:.3f}\t"
                 "LR_enc: {:.5f}\t"
                 "LR_dec: {:.5f}\t"
+                "alpha: {:.5f}\t"
                 "Avg. Time: {:.3f}".format(
-                    epoch, i, len(train_loader), losses.avg, lr_enc, lr_dec, batch_time.avg
+                    epoch, i, len(train_loader), losses.avg, lr_encoder, lr_decoder, alpha, batch_time.avg
                 )
             )
-    #     l.append(losses.avg)
+        # l.append(losses.avg)
+
     # l = np.mean(np.array(l))
-    # return l
+    return los, lr_e, lr_d, alpha
 
 
 def validate(segmenter, val_loader, epoch, num_classes=-1):
@@ -379,7 +397,6 @@ def main():
         else:
             print("=> no checkpoint found at '{}'".format(args.resume))
             return
-    epoch_start = 110
     epoch_current = epoch_start
     
     ## Criterion ##
@@ -392,8 +409,9 @@ def main():
     logger.info(" Training Process Starts")
     loss_list = []
     iou = []
+    alpha = 0
 
-    for task_idx in [1, 2]:
+    for task_idx in [0, 1, 2]:
         start = time.time()
         torch.cuda.empty_cache()
         ## Create dataloaders ##
@@ -432,47 +450,33 @@ def main():
             args.resume = False
             print('optimizer loaded')
 
-        for param_group in optim_enc.param_groups:
-            param_group['lr'] = args.lr_enc[task_idx]
-        for param_group in optim_dec.param_groups:
-            param_group['lr'] = args.lr_dec[task_idx]
-        
-        # for param_group in optim_enc.param_groups:
-        #     lr_enc = param_group['lr']
-        # for param_group in optim_dec.param_groups:
-        #     lr_dec = param_group['lr']
-        # print(lr_enc, lr_dec)
-        # hi
-        
-        
-        
+        losses = []
+        encoder_lrs = []
+        decoder_lrs = []
         for epoch in range(args.num_segm_epochs[task_idx]):
-            # print('epoch_start', epoch_start, 'epoch_current', epoch_current)
-            train_segmenter(segmenter, train_loader, optim_enc, optim_dec,
-                epoch_start, segm_crit, args.freeze_bn[task_idx])
-            # loss_list.append(l)
-            # if task_idx > 0:
-            #     scheduler_enc.step()
-            #     # scheduler_dec.step()
-            #     if epoch == 5:
-            #       print('***********schedule step')
+            # print('epoch_start', epoch_start, 'epoch_current', epoch_current)            
+            l, e, d, alpha = train_segmenter(segmenter, train_loader, optim_enc, optim_dec,
+                epoch_start, segm_crit, args.freeze_bn[task_idx], alpha)
+            losses += l
+            encoder_lrs += e
+            decoder_lrs += d
 
-            # hu
+            with open('./losses1.txt', 'w') as f:
+                for i in losses:
+                    f.write(str(i) + '\n')
+            with open('./encoder1.txt', 'w') as f:
+                for i in encoder_lrs:
+                    f.write(str(i) + '\n')
+            with open('./decoder1.txt', 'w') as f:
+                for i in decoder_lrs:
+                    f.write(str(i) + '\n')
+
+                
             if (epoch + 1) % (args.val_every[task_idx]) == 0:
                 miou = validate(segmenter, val_loader, epoch_start, args.num_classes[task_idx])
                 saver.save(miou, {'segmenter' : segmenter.state_dict()}, {'epoch_start' : epoch_start},
                                  {'opt_enc': optim_enc.state_dict(), 'opt_dec':optim_dec.state_dict()})
-                # iou.append(miou)
-
-            
-            # if epoch_start == 89:
-            #     with open('./rms_loss_90.txt', 'w') as f:
-            #         for i in loss_list:
-            #             f.write(str(i) + '\n')
-            #     with open('./rms_iou_90.txt', 'w') as g:
-            #         for i in loss_list:
-            #             g.write(str(i) + '\n')
-                    
+                # iou.append(miou)                    
             
             epoch_start += 1
         logger.info("Stage {} finished, time spent {:.3f}min".format(task_idx, (time.time() - start) / 60.0))
