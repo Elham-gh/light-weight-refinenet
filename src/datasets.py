@@ -59,7 +59,7 @@ class Pad(object):
         self.bpd_val = np.mean(img_val)
 
     def __call__(self, sample):
-        image, mask, bpd = sample["image"], sample["mask"], sample["bpd"]
+        image, mask, bpd, depth = sample["image"], sample["mask"], sample["bpd"], sample["depth"]
         h, w = image.shape[:2]
         h_pad = int(np.clip(((self.size - h) + 1) // 2, 0, 1e6))
         w_pad = int(np.clip(((self.size - w) + 1) // 2, 0, 1e6))
@@ -78,7 +78,8 @@ class Pad(object):
         )
         mask = np.pad(mask, pad, mode="constant", constant_values=self.msk_val)
         bpd = np.pad(bpd, pad, mode="constant", constant_values=self.bpd_val)
-        return {"image": image, "mask": mask, "name": sample["name"], "bpd": bpd}
+        depth = np.pad(depth, pad, mode="constant", constant_values=self.depth_val)
+        return {"image": image, "mask": mask, "name": sample["name"], "bpd": bpd, "depth":depth}
 
 
 class RandomCrop(object):
@@ -96,7 +97,7 @@ class RandomCrop(object):
             self.crop_size -= 1
 
     def __call__(self, sample):
-        image, mask, bpd = sample["image"], sample["mask"], sample["bpd"]
+        image, mask, bpd, depth = sample["image"], sample["mask"], sample["bpd"], sample["depth"]
         h, w = image.shape[:2]
         new_h = min(h, self.crop_size)
         new_w = min(w, self.crop_size)
@@ -105,7 +106,8 @@ class RandomCrop(object):
         image = image[top : top + new_h, left : left + new_w]
         mask = mask[top : top + new_h, left : left + new_w]
         bpd = bpd[top : top + new_h, left : left + new_w]
-        return {"image": image, "mask": mask, "name": sample["name"], "bpd": bpd}
+        depth = depth[top : top + new_h, left : left + new_w]
+        return {"image": image, "mask": mask, "name": sample["name"], "bpd": bpd, "depth": depth}
 
 
 class ResizeShorterScale(object):
@@ -118,7 +120,7 @@ class ResizeShorterScale(object):
         self.high_scale = high_scale
 
     def __call__(self, sample):
-        image, mask, bpd = sample["image"], sample["mask"], sample["bpd"]
+        image, mask, bpd, depth = sample["image"], sample["mask"], sample["bpd"], sample["depth"]
         min_side = min(image.shape[:2])
         scale = np.random.uniform(self.low_scale, self.high_scale)
         if min_side * scale < self.shorter_side:
@@ -129,11 +131,13 @@ class ResizeShorterScale(object):
         bpd = cv2.resize(
             bpd, None, fx=scale, fy=scale, interpolation=cv2.INTER_NEAREST  
         )
-        
+        depth = cv2.resize(
+            depth, None, fx=scale, fy=scale, interpolation=cv2.INTER_NEAREST  
+        )
         mask = cv2.resize(
             mask, None, fx=scale, fy=scale, interpolation=cv2.INTER_NEAREST
         )
-        return {"image": image, "mask": mask, "name": sample["name"], "bpd": bpd}
+        return {"image": image, "mask": mask, "name": sample["name"], "bpd": bpd, "depth":depth}
 
 
 class RandomMirror(object):
@@ -143,13 +147,14 @@ class RandomMirror(object):
         pass
 
     def __call__(self, sample):
-        image, mask, bpd = sample["image"], sample["mask"], sample["bpd"]
+        image, mask, bpd, depth = sample["image"], sample["mask"], sample["bpd"], sample["depth"]
         do_mirror = np.random.randint(2)
         if do_mirror:
             image = cv2.flip(image, 1)
             mask = cv2.flip(mask, 1)
             bpd = cv2.flip(bpd, 1)
-        return {"image": image, "mask": mask, "name": sample["name"], "bpd": bpd}
+            depth = cv2.flip(depth, 1)
+        return {"image": image, "mask": mask, "name": sample["name"], "bpd": bpd, "depth":depth}
 
 
 class Normalise(object):
@@ -170,16 +175,15 @@ class Normalise(object):
         self.std = std
 
     def __call__(self, sample):
-        image = sample["image"]
-        bpd = sample["bpd"]
+        image, bpd, depth = sample["image"], sample["bpd"], sample["depth"]
         image = (self.scale * image - self.mean) / self.std
         bpd = ((bpd - np.min(bpd)) / (np.max(bpd) - np.min(bpd))) * 255
         bpd = (self.scale * bpd - self.mean.mean(axis=2)) / self.std.mean(axis=2)
+        depth = ((depth - np.min(depth)) / (np.max(depth) - np.min(depth))) * 255
+        depth = (self.scale * depth - self.mean.mean(axis=2)) / self.std.mean(axis=2)
         return {
-            "image": image, 
-            "mask": sample["mask"],
-            "name": sample["name"],
-            "bpd": bpd
+            "image": image, "mask": sample["mask"], "name": sample["name"],
+            "bpd": bpd, "depth": depth
         }
 
 
@@ -188,14 +192,16 @@ class ToTensor(object):
     """Convert ndarrays in sample to Tensors."""
 
     def __call__(self, sample):
-        image, mask = sample["image"], sample["mask"]
+        image = sample["image"]
         # swap color axis because
         # numpy image: H x W x C
         # torch image: C X H X W
         image = image.transpose((2, 0, 1))
-        d = {"image": torch.from_numpy(image), "mask": torch.from_numpy(mask),
-            "name": sample["name"], "bpd": torch.from_numpy(sample["bpd"])}
-        return d
+        return {
+          "image": torch.from_numpy(image), "mask": torch.from_numpy(sample["mask"]), 
+          "name": sample["name"], "bpd": torch.from_numpy(sample["bpd"]), 
+          "depth": torch.from_numpy(sample["depth"])
+        }
 
 
 class NYUDataset(Dataset):
@@ -228,6 +234,7 @@ class NYUDataset(Dataset):
     def __getitem__(self, idx):
         img_name = os.path.join(self.root_dir, 'rgb', self.datalist[idx])
         msk_name = os.path.join(self.root_dir, 'masks', self.datalist[idx])
+        dpt_name = os.path.join(self.root_dir, 'depth', self.datalist[idx])
         bpd_name = self.datalist[idx][:6]
 
         def read_image(x):
@@ -238,11 +245,12 @@ class NYUDataset(Dataset):
 
         image = read_image(img_name)
         mask = np.array(Image.open(msk_name))
+        depth = np.array(Image.open(dpt_name))
         bpd = self.bpds[bpd_name]
         
         if img_name != msk_name:
             assert len(mask.shape) == 2, "Masks must be encoded without colourmap"
-        sample = {"image": image, "mask": mask, "name": bpd_name, "bpd": bpd}
+        sample = {"image": image, "mask": mask, "name": bpd_name, "bpd": bpd, "depth": depth}
         if self.stage == "train":
             if self.transform_trn:
                 sample = self.transform_trn(sample)
