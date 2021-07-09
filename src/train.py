@@ -249,10 +249,9 @@ def train_segmenter(
     batch_time = AverageMeter()
     losses = AverageMeter()
     l = []
-    for param_group in optim_enc.param_groups:
-        lr_enc = param_group['lr']
-    for param_group in optim_dec.param_groups:
-        lr_dec = param_group['lr']
+    lr_enc = optim_enc.param_groups[0]['lr']
+    lr_dec = optim_dec.param_groups[0]['lr']
+
     for i, sample in enumerate(train_loader):
         start = time.time()
         image = sample['image']
@@ -389,8 +388,8 @@ def main():
         best_val=best_val, condition=lambda x, y: x > y)  # keep checkpoint with the best validation score
 
     logger.info(" Training Process Starts")
-    loss_list = []
-    iou = []
+    # loss_list = []
+    # iou = []
 
     for task_idx in range(args.num_stages):
         start = time.time()
@@ -420,58 +419,31 @@ def main():
             args.wd_enc[task_idx], args.wd_dec[task_idx], enc_params,
             dec_params, args.optim_dec)
      
-        scheduler_enc = torch.optim.lr_scheduler.MultiStepLR(optim_enc, milestones=[5], gamma=0.1)
+        # scheduler_enc = torch.optim.lr_scheduler.MultiStepLR(optim_enc, milestones=[5], gamma=0.1)
         # scheduler_dec = torch.optim.lr_scheduler.MultiStepLR(optim_dec, milestones=[5], gamma=0.1)
 
         if args.resume:
             enc_opt, dec_opt = load_ckpt(args.resume, None, mode='opt')
-            optim_enc.load_state_dict(enc_opt)
-            
+            optim_enc.load_state_dict(enc_opt)          
             optim_dec.load_state_dict(dec_opt)
             args.resume = False
             print('optimizer loaded')
 
-        for param_group in optim_enc.param_groups:
-            param_group['lr'] = args.lr_enc[task_idx]
-        for param_group in optim_dec.param_groups:
-            param_group['lr'] = args.lr_dec[task_idx]
-        
-        # for param_group in optim_enc.param_groups:
-        #     lr_enc = param_group['lr']
-        # for param_group in optim_dec.param_groups:
-        #     lr_dec = param_group['lr']
-        # print(lr_enc, lr_dec)
-        # hi
-        
-        
-        
         for epoch in range(args.num_segm_epochs[task_idx]):
             # print('epoch_start', epoch_start, 'epoch_current', epoch_current)
             train_segmenter(segmenter, train_loader, optim_enc, optim_dec,
                 epoch_start, segm_crit, args.freeze_bn[task_idx])
-            # loss_list.append(l)
+            # schedule learning rate 
             # if task_idx > 0:
             #     scheduler_enc.step()
             #     # scheduler_dec.step()
             #     if epoch == 5:
             #       print('***********schedule step')
 
-            # hu
             if (epoch + 1) % (args.val_every[task_idx]) == 0:
                 miou = validate(segmenter, val_loader, epoch_start, args.num_classes[task_idx])
                 saver.save(miou, {'segmenter' : segmenter.state_dict()}, {'epoch_start' : epoch_start},
-                                 {'opt_enc': optim_enc.state_dict(), 'opt_dec':optim_dec.state_dict()})
-                # iou.append(miou)
-
-            
-            # if epoch_start == 89:
-            #     with open('./rms_loss_90.txt', 'w') as f:
-            #         for i in loss_list:
-            #             f.write(str(i) + '\n')
-            #     with open('./rms_iou_90.txt', 'w') as g:
-            #         for i in loss_list:
-            #             g.write(str(i) + '\n')
-                    
+                                 {'opt_enc': optim_enc.state_dict(), 'opt_dec':optim_dec.state_dict()})    
             
             epoch_start += 1
         logger.info("Stage {} finished, time spent {:.3f}min".format(task_idx, (time.time() - start) / 60.0))
