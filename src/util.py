@@ -76,6 +76,6 @@ class Saver():
             print(' New best value {:.4f}, was {:.4f}'.format(new_val, self.best_val), flush=True)
             self.best_val = new_val
         '''save epoch number and task index and best miou'''
-        numbers['best_val'] = self.best_val)
+        numbers['best_val'] = self.best_val
         torch.save(numbers, '{}/numbers.pth.tar'.format(self.ckpt_dir))
         
