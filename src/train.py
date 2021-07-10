@@ -48,7 +48,8 @@ def get_arguments():
     """Parse all the arguments provided from the CLI.
     Returns:
       A list of parsed arguments.
-    """
+    """ 
+    
     parser = argparse.ArgumentParser(description="Full Pipeline Training")
     
     # Dataset
