@@ -35,8 +35,8 @@ VAL_EVERY = [10] * 3  # how often to record validation scores
 RESUME = '' #'/content/drive/MyDrive/Super-BPD/LWR/lr_ckpt/'
 
 # OPTIMISERS' PARAMETERS
-LR_ENC = [3e-3, 1.5e-3, 7e-4]  # TO FREEZE, PUT 0
-LR_DEC = [3e-2, 1.5e-2, 7e-3]
+LR_ENC = [4e-5, 2e-5, 1e-5]  # TO FREEZE, PUT 0
+LR_DEC = [4e-4, 2e-4, 1e-4]
 MOM_ENC = [0.9, .9, 0.2]  # TO FREEZE, PUT 0
 MOM_DEC = [0.9, .9, 0.2] 
 WD_ENC = [1e-5] * 3  # TO FREEZE, PUT 0
