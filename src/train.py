@@ -1,20 +1,14 @@
 """RefineNet-LightWeight
-
 RefineNet-LigthWeight PyTorch for non-commercial purposes
-
 Copyright (c) 2018, Vladimir Nekrasov (vladimir.nekrasov@adelaide.edu.au)
 All rights reserved.
-
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
-
 * Redistributions of source code must retain the above copyright notice, this
   list of conditions and the following disclaimer.
-
 * Redistributions in binary form must reproduce the above copyright notice,
   this list of conditions and the following disclaimer in the documentation
   and/or other materials provided with the distribution.
-
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -34,6 +28,7 @@ import os
 import random
 import re
 import time
+import pickle
 
 # misc
 import cv2
@@ -61,6 +56,7 @@ def get_arguments():
     parser.add_argument("--val-dir", type=str, default=VAL_DIR, help="Path to the validation set directory.")
     parser.add_argument("--train-list", type=str, nargs="+", default=TRAIN_LIST, help="Path to the training set list.")
     parser.add_argument("--val-list", type=str, nargs="+", default=VAL_LIST, help="Path to the validation set list.")
+    parser.add_argument("--bpd-dir", type=str, default=BPD_DIR, help="Path to the BPD dictionary.")
     parser.add_argument("--shorter-side", type=int, nargs="+", default=SHORTER_SIDE, help="Shorter side transformation.")
     parser.add_argument("--crop-size", type=int, nargs="+", default=CROP_SIZE, help="Crop size for training,")
     parser.add_argument("--normalise-params", type=list, default=NORMALISE_PARAMS, help="Normalisation parameters [scale, mean, std],")
@@ -111,7 +107,7 @@ def create_segmenter(net, pretrained, num_classes):
         raise ValueError("{} is not supported".format(str(net)))
 
 
-def create_loaders(train_dir, val_dir, train_list, val_list, shorter_side,
+def create_loaders(train_dir, val_dir, train_list, val_list, bpd_dir, shorter_side, #***
     crop_size, low_scale, high_scale, normalise_params, batch_size,
     num_workers, ignore_label):
     """
@@ -128,10 +124,8 @@ def create_loaders(train_dir, val_dir, train_list, val_list, shorter_side,
       batch_size (int) : training batch size.
       num_workers (int) : number of workers to parallelise data loading operations.
       ignore_label (int) : label to pad segmentation masks with
-
     Returns:
-      train_loader, val loader
-
+      train_loader, val_loader
     """
     # Torch libraries
     from torchvision import transforms
@@ -147,7 +141,7 @@ def create_loaders(train_dir, val_dir, train_list, val_list, shorter_side,
         ToTensor,
         Normalise,
     )
-
+    
     ## Transformations during training ##
     composed_trn = transforms.Compose(
         [
@@ -164,6 +158,7 @@ def create_loaders(train_dir, val_dir, train_list, val_list, shorter_side,
     trainset = Dataset(
         data_file=train_list,
         data_dir=train_dir,
+        bpd_dir=bpd_dir, #***
         transform_trn=composed_trn,
         transform_val=composed_val,
     )
@@ -171,6 +166,7 @@ def create_loaders(train_dir, val_dir, train_list, val_list, shorter_side,
     valset = Dataset(
         data_file=val_list,
         data_dir=val_dir,
+        bpd_dir=bpd_dir, #***
         transform_trn=None,
         transform_val=composed_val,
     )
@@ -227,7 +223,6 @@ def train_segmenter(
     segmenter, train_loader, optim_enc, optim_dec, epoch, segm_crit, freeze_bn
 ):
     """Training segmenter
-
     Args:
       segmenter (nn.Module) : segmentation network
       train_loader (DataLoader) : training data iterator
@@ -236,7 +231,6 @@ def train_segmenter(
       epoch (int) : current epoch
       segm_crit (nn.Loss) : segmentation criterion
       freeze_bn (bool) : whether to keep BN params intact
-
     """
     train_loader.dataset.set_stage("train")
     segmenter.train()
@@ -248,7 +242,8 @@ def train_segmenter(
     losses = AverageMeter()
     for i, sample in enumerate(train_loader):
         start = time.time()
-        input = sample["image"].cuda()
+        # image = sample['image']
+        input = sample['bpd']
         target = sample["mask"].cuda()
         input_var = torch.autograd.Variable(input).float()
         target_var = torch.autograd.Variable(target).long()
@@ -279,13 +274,11 @@ def train_segmenter(
 
 def validate(segmenter, val_loader, epoch, num_classes=-1):
     """Validate segmenter
-
     Args:
       segmenter (nn.Module) : segmentation network
       val_loader (DataLoader) : training data iterator
       epoch (int) : current epoch
       num_classes (int) : number of classes to consider
-
     Returns:
       Mean IoU (float)
     """
@@ -294,7 +287,10 @@ def validate(segmenter, val_loader, epoch, num_classes=-1):
     cm = np.zeros((num_classes, num_classes), dtype=int)
     with torch.no_grad():
         for i, sample in enumerate(val_loader):
-            input = sample["image"]
+            # start = time.time()
+            image = sample['image']
+            bpd = sample['bpd'][:, None, :, :]
+            input = torch.cat((image, bpd), 1)
             target = sample["mask"]
             input_var = torch.autograd.Variable(input).float().cuda()
             # Compute output
@@ -378,10 +374,10 @@ def main():
         torch.cuda.empty_cache()
         ## Create dataloaders ##
         train_loader, val_loader = create_loaders(args.train_dir, args.val_dir,
-            args.train_list[task_idx], args.val_list[task_idx], args.shorter_side[task_idx],
-            args.crop_size[task_idx], args.low_scale[task_idx], args.high_scale[task_idx],
-            args.normalise_params, args.batch_size[task_idx], args.num_workers,
-            args.ignore_label)
+            args.train_list[task_idx], args.val_list[task_idx], args.bpd_dir, #***
+            args.shorter_side[task_idx], args.crop_size[task_idx], 
+            args.low_scale[task_idx], args.high_scale[task_idx], args.normalise_params, 
+            args.batch_size[task_idx], args.num_workers, args.ignore_label)
         if args.evaluate:
             return validate(segmenter, val_loader, 0, num_classes=args.num_classes[task_idx])
 
