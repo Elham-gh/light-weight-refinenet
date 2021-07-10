@@ -265,12 +265,7 @@ def rf_lw50(num_classes, imagenet=False, pretrained=True, **kwargs):
     if imagenet:
         key = "50_imagenet"
         url = models_urls[key]
-        net = maybe_download(key, url)
-        # print(net['conv1.weight'].shape)
-        conv1 = net['conv1.weight'].mean(axis=1)[:, None, :, :]
-        net['conv1.weight'] = torch.cat((net['conv1.weight'], conv1), axis=1)
-        # hi
-        model.load_state_dict(net, strict=False)
+        model.load_state_dict(maybe_download(key, url), strict=False)
     elif pretrained:
         dataset = data_info.get(num_classes, None)
         if dataset:
