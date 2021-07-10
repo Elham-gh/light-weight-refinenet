@@ -203,7 +203,6 @@ class ResNetLW(nn.Module):
         # print('l3', l3.size())
         l4 = self.layer4(l3)
         # print('l4', l4.size())
-        enc = l4
 
         l4 = self.do(l4)
         # print('208-l4', l4.size()) 
@@ -257,7 +256,7 @@ class ResNetLW(nn.Module):
         
         out = self.clf_conv(x1)
         # print('out', out.size())
-        return out, l4
+        return out
 
 
 def rf_lw50(num_classes, imagenet=False, pretrained=True, **kwargs):
