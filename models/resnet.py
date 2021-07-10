@@ -132,7 +132,7 @@ class ResNetLW(nn.Module):
         self.inplanes = 64
         super(ResNetLW, self).__init__()
         self.do = nn.Dropout(p=0.5)
-        self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        self.conv1 = nn.Conv2d(4, 64, kernel_size=7, stride=2, padding=3, bias=False) #***
         self.bn1 = nn.BatchNorm2d(64)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
@@ -188,57 +188,90 @@ class ResNetLW(nn.Module):
         return nn.Sequential(*layers)
 
     def forward(self, x):
+        # print(191, x.size())
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
         x = self.maxpool(x)
 
+        # print(197, x.size())
         l1 = self.layer1(x)
+        # print('l1', l1.size())
         l2 = self.layer2(l1)
+        # print('l2', l2.size())
         l3 = self.layer3(l2)
+        # print('l3', l3.size())
         l4 = self.layer4(l3)
+        # print('l4', l4.size())
+        enc = l4
 
         l4 = self.do(l4)
+        # print('208-l4', l4.size()) 
         l3 = self.do(l3)
+        # print('210-l3', l3.size()) 
 
         x4 = self.p_ims1d2_outl1_dimred(l4)
+        # print('213-x4', x4.size())
         x4 = self.relu(x4)
         x4 = self.mflow_conv_g1_pool(x4)
+        # print('216-x4', x4.size())
         x4 = self.mflow_conv_g1_b3_joint_varout_dimred(x4)
+        # print('218-x4', x4.size())
         x4 = nn.Upsample(size=l3.size()[2:], mode="bilinear", align_corners=True)(x4)
+        # print('220-x4', x4.size())
 
         x3 = self.p_ims1d2_outl2_dimred(l3)
+        # print('223-x3', x3.size())
         x3 = self.adapt_stage2_b2_joint_varout_dimred(x3)
+        # print('225-x3', x3.size())
         x3 = x3 + x4
         x3 = F.relu(x3)
         x3 = self.mflow_conv_g2_pool(x3)
+        # print('229-x3', x3.size())
         x3 = self.mflow_conv_g2_b3_joint_varout_dimred(x3)
+        # print('231-x3', x3.size())
         x3 = nn.Upsample(size=l2.size()[2:], mode="bilinear", align_corners=True)(x3)
+        # print('233-x3', x3.size())
 
         x2 = self.p_ims1d2_outl3_dimred(l2)
+        # print('236-x2', x2.size())
         x2 = self.adapt_stage3_b2_joint_varout_dimred(x2)
+        # print('238-x2', x2.size())
         x2 = x2 + x3
         x2 = F.relu(x2)
         x2 = self.mflow_conv_g3_pool(x2)
+        # print('242-x2', x2.size())
         x2 = self.mflow_conv_g3_b3_joint_varout_dimred(x2)
+        # print('244-x2', x2.size())
         x2 = nn.Upsample(size=l1.size()[2:], mode="bilinear", align_corners=True)(x2)
+        # print('246-x2', x2.size())
 
         x1 = self.p_ims1d2_outl4_dimred(l1)
+        # print('249-x1', x1.size())
         x1 = self.adapt_stage4_b2_joint_varout_dimred(x1)
+        # print('251-x1', x1.size())
         x1 = x1 + x2
         x1 = F.relu(x1)
         x1 = self.mflow_conv_g4_pool(x1)
-
+        # print('255-x1', x1.size())
+        
         out = self.clf_conv(x1)
-        return out
+        # print('out', out.size())
+        return out, l4
 
 
 def rf_lw50(num_classes, imagenet=False, pretrained=True, **kwargs):
     model = ResNetLW(Bottleneck, [3, 4, 6, 3], num_classes=num_classes, **kwargs)
+    import torch
     if imagenet:
         key = "50_imagenet"
         url = models_urls[key]
-        model.load_state_dict(maybe_download(key, url), strict=False)
+        net = maybe_download(key, url)
+        # print(net['conv1.weight'].shape)
+        conv1 = net['conv1.weight'].mean(axis=1)[:, None, :, :]
+        net['conv1.weight'] = torch.cat((net['conv1.weight'], conv1), axis=1)
+        # hi
+        model.load_state_dict(net, strict=False)
     elif pretrained:
         dataset = data_info.get(num_classes, None)
         if dataset:
