@@ -77,7 +77,18 @@ class Pad(object):
             axis=2,
         )
         mask = np.pad(mask, pad, mode="constant", constant_values=self.msk_val)
-        bpd = np.pad(bpd, pad, mode="constant", constant_values=self.bpd_val)
+        bpd = np.stack(
+            [
+                np.pad(
+                    bpd[:, :, c],
+                    pad,
+                    mode="constant",
+                    constant_values=self.img_val[c],
+                )
+                for c in range(3)
+            ],
+            axis=2,
+        )
         return {"image": image, "mask": mask, "name": sample["name"], "bpd": bpd}
 
 
@@ -127,9 +138,8 @@ class ResizeShorterScale(object):
             image, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC
         )
         bpd = cv2.resize(
-            bpd, None, fx=scale, fy=scale, interpolation=cv2.INTER_NEAREST  
+            bpd, None, fx=scale, fy=scale, interpolation=cv2.INTER_NEAREST
         )
-        
         mask = cv2.resize(
             mask, None, fx=scale, fy=scale, interpolation=cv2.INTER_NEAREST
         )
@@ -174,7 +184,7 @@ class Normalise(object):
         bpd = sample["bpd"]
         image = (self.scale * image - self.mean) / self.std
         bpd = ((bpd - np.min(bpd)) / (np.max(bpd) - np.min(bpd))) * 255
-        bpd = (self.scale * bpd - self.mean.mean(axis=2)) / self.std.mean(axis=2)
+        bpd = (self.scale * bpd - self.mean) / self.std
         return {
             "image": image, 
             "mask": sample["mask"],
@@ -188,13 +198,15 @@ class ToTensor(object):
     """Convert ndarrays in sample to Tensors."""
 
     def __call__(self, sample):
-        image, mask = sample["image"], sample["mask"]
+        image, bpd, mask = sample["image"], sample["bpd"], sample["mask"]
         # swap color axis because
         # numpy image: H x W x C
         # torch image: C X H X W
         image = image.transpose((2, 0, 1))
+        bpd = bpd.transpose((2, 0, 1))
+
         d = {"image": torch.from_numpy(image), "mask": torch.from_numpy(mask),
-            "name": sample["name"], "bpd": torch.from_numpy(sample["bpd"])}
+            "name": sample["name"], "bpd": torch.from_numpy(bpd)}
         return d
 
 
@@ -239,6 +251,7 @@ class NYUDataset(Dataset):
         image = read_image(img_name)
         mask = np.array(Image.open(msk_name))
         bpd = self.bpds[bpd_name]
+        bpd = np.tile(bpd, (3, 1, 1)).transpose(1, 2, 0)
         
         if img_name != msk_name:
             assert len(mask.shape) == 2, "Masks must be encoded without colourmap"
