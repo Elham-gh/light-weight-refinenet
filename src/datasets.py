@@ -34,6 +34,7 @@ import warnings
 
 import cv2
 import numpy as np
+import pickle
 import torch
 from PIL import Image
 from torch.utils.data import Dataset
@@ -55,9 +56,10 @@ class Pad(object):
         self.size = size
         self.img_val = img_val
         self.msk_val = msk_val
+        self.bpd_val = np.mean(img_val)
 
     def __call__(self, sample):
-        image, mask = sample["image"], sample["mask"]
+        image, mask, bpd = sample["image"], sample["mask"], sample["bpd"]
         h, w = image.shape[:2]
         h_pad = int(np.clip(((self.size - h) + 1) // 2, 0, 1e6))
         w_pad = int(np.clip(((self.size - w) + 1) // 2, 0, 1e6))
@@ -75,7 +77,8 @@ class Pad(object):
             axis=2,
         )
         mask = np.pad(mask, pad, mode="constant", constant_values=self.msk_val)
-        return {"image": image, "mask": mask}
+        bpd = np.pad(bpd, pad, mode="constant", constant_values=self.bpd_val)
+        return {"image": image, "mask": mask, "name": sample["name"], "bpd": bpd}
 
 
 class RandomCrop(object):
@@ -93,7 +96,7 @@ class RandomCrop(object):
             self.crop_size -= 1
 
     def __call__(self, sample):
-        image, mask = sample["image"], sample["mask"]
+        image, mask, bpd = sample["image"], sample["mask"], sample["bpd"]
         h, w = image.shape[:2]
         new_h = min(h, self.crop_size)
         new_w = min(w, self.crop_size)
@@ -101,7 +104,8 @@ class RandomCrop(object):
         left = np.random.randint(0, w - new_w + 1)
         image = image[top : top + new_h, left : left + new_w]
         mask = mask[top : top + new_h, left : left + new_w]
-        return {"image": image, "mask": mask}
+        bpd = bpd[top : top + new_h, left : left + new_w]
+        return {"image": image, "mask": mask, "name": sample["name"], "bpd": bpd}
 
 
 class ResizeShorterScale(object):
@@ -114,7 +118,7 @@ class ResizeShorterScale(object):
         self.high_scale = high_scale
 
     def __call__(self, sample):
-        image, mask = sample["image"], sample["mask"]
+        image, mask, bpd = sample["image"], sample["mask"], sample["bpd"]
         min_side = min(image.shape[:2])
         scale = np.random.uniform(self.low_scale, self.high_scale)
         if min_side * scale < self.shorter_side:
@@ -122,10 +126,14 @@ class ResizeShorterScale(object):
         image = cv2.resize(
             image, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC
         )
+        bpd = cv2.resize(
+            bpd, None, fx=scale, fy=scale, interpolation=cv2.INTER_NEAREST  
+        )
+        
         mask = cv2.resize(
             mask, None, fx=scale, fy=scale, interpolation=cv2.INTER_NEAREST
         )
-        return {"image": image, "mask": mask}
+        return {"image": image, "mask": mask, "name": sample["name"], "bpd": bpd}
 
 
 class RandomMirror(object):
@@ -135,12 +143,13 @@ class RandomMirror(object):
         pass
 
     def __call__(self, sample):
-        image, mask = sample["image"], sample["mask"]
+        image, mask, bpd = sample["image"], sample["mask"], sample["bpd"]
         do_mirror = np.random.randint(2)
         if do_mirror:
             image = cv2.flip(image, 1)
             mask = cv2.flip(mask, 1)
-        return {"image": image, "mask": mask}
+            bpd = cv2.flip(bpd, 1)
+        return {"image": image, "mask": mask, "name": sample["name"], "bpd": bpd}
 
 
 class Normalise(object):
@@ -162,10 +171,17 @@ class Normalise(object):
 
     def __call__(self, sample):
         image = sample["image"]
+        bpd = sample["bpd"]
+        image = (self.scale * image - self.mean) / self.std
+        bpd = ((bpd - np.min(bpd)) / (np.max(bpd) - np.min(bpd))) * 255
+        bpd = (self.scale * bpd - self.mean.mean(axis=2)) / self.std.mean(axis=2)
         return {
-            "image": (self.scale * image - self.mean) / self.std,
+            "image": image, 
             "mask": sample["mask"],
+            "name": sample["name"],
+            "bpd": bpd
         }
+
 
 
 class ToTensor(object):
@@ -177,13 +193,15 @@ class ToTensor(object):
         # numpy image: H x W x C
         # torch image: C X H X W
         image = image.transpose((2, 0, 1))
-        return {"image": torch.from_numpy(image), "mask": torch.from_numpy(mask)}
+        d = {"image": torch.from_numpy(image), "mask": torch.from_numpy(mask),
+            "name": sample["name"], "bpd": torch.from_numpy(sample["bpd"])}
+        return d
 
 
 class NYUDataset(Dataset):
     """NYUv2-40"""
 
-    def __init__(self, data_file, data_dir, transform_trn=None, transform_val=None):
+    def __init__(self, data_file, data_dir, bpd_dir, transform_trn=None, transform_val=None):
         """
         Args:
             data_file (string): Path to the data file with annotations.
@@ -193,18 +211,13 @@ class NYUDataset(Dataset):
         """
         with open(data_file, "rb") as f:###* rb
             datalist = f.readlines()
-        
-        # self.datalist = [
-        #     (k, v)
-        #     for k, v in map(
-        #         lambda x: x.decode("utf-8").strip("\n").split("\t"), datalist
-        #     )
-        # ]
         self.datalist = [i[:6].decode("utf-8") + '.png' for i in datalist]
         self.root_dir = data_dir
         self.transform_trn = transform_trn
         self.transform_val = transform_val
         self.stage = "train"
+        self.bpd_dir = bpd_dir[0]
+        self.bpds = pickle.load(open(self.bpd_dir, 'rb'))
 
     def set_stage(self, stage):
         self.stage = stage
@@ -215,6 +228,7 @@ class NYUDataset(Dataset):
     def __getitem__(self, idx):
         img_name = os.path.join(self.root_dir, 'rgb', self.datalist[idx])
         msk_name = os.path.join(self.root_dir, 'masks', self.datalist[idx])
+        bpd_name = self.datalist[idx][:6]
 
         def read_image(x):
             img_arr = np.array(Image.open(x))
@@ -224,10 +238,11 @@ class NYUDataset(Dataset):
 
         image = read_image(img_name)
         mask = np.array(Image.open(msk_name))
+        bpd = self.bpds[bpd_name]
         
         if img_name != msk_name:
             assert len(mask.shape) == 2, "Masks must be encoded without colourmap"
-        sample = {"image": image, "mask": mask}
+        sample = {"image": image, "mask": mask, "name": bpd_name, "bpd": bpd}
         if self.stage == "train":
             if self.transform_trn:
                 sample = self.transform_trn(sample)
