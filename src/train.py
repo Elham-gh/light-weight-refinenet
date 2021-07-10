@@ -258,6 +258,7 @@ def train_segmenter(
         optim_enc.zero_grad()
         optim_dec.zero_grad()
         loss.backward()
+        torch.nn.utils.clip_grad_norm_(segmenter.parameters(), 0.5)
         optim_enc.step()
         optim_dec.step()
         losses.update(loss.item())
