@@ -5,6 +5,7 @@ TRAIN_DIR = '/content/drive/MyDrive/datasets/nyudv2/'
 VAL_DIR = TRAIN_DIR
 TRAIN_LIST = ['/content/light-weight-refinenet/data/train_CEN.nyu'] * 3
 VAL_LIST = ['/content/light-weight-refinenet/data/val_CEN.nyu'] * 3
+BPD_DIR = ['/content/drive/MyDrive/datasets/nyu/CEN_bpds.pkl'] * 3
 SHORTER_SIDE = [350] * 3
 CROP_SIZE = [500] * 3
 NORMALISE_PARAMS = [
@@ -12,8 +13,8 @@ NORMALISE_PARAMS = [
     np.array([0.485, 0.456, 0.406]).reshape((1, 1, 3)),  # MEAN
     np.array([0.229, 0.224, 0.225]).reshape((1, 1, 3)),
 ]  # STD
-BATCH_SIZE = [6] * 3
-NUM_WORKERS = 16
+BATCH_SIZE = [12] * 3
+NUM_WORKERS = 4
 NUM_CLASSES = [40] * 3
 LOW_SCALE = [0.5] * 3
 HIGH_SCALE = [2.0] * 3
@@ -29,15 +30,15 @@ FREEZE_BN = [True] * 3
 NUM_SEGM_EPOCHS = [100] * 3
 PRINT_EVERY = 10
 RANDOM_SEED = 42
-CKPT_PATH = '/content/drive/MyDrive/Super-BPD/LWR/ckpt/'
+CKPT_PATH = '/content/drive/MyDrive/Super-BPD/LWR/ckpt_just_bpd/'
 VAL_EVERY = [10] * 3  # how often to record validation scores
-RESUME = ''#'/content/light-weight-refinenet/ckpt/'
+RESUME = '' #'/content/drive/MyDrive/Super-BPD/LWR/lr_ckpt/'
 
 # OPTIMISERS' PARAMETERS
-LR_ENC = [5e-4, 2.5e-4, 1e-4]  # TO FREEZE, PUT 0
-LR_DEC = [5e-3, 2.5e-3, 1e-3]
-MOM_ENC = [0.9] * 3  # TO FREEZE, PUT 0
-MOM_DEC = [0.9] * 3
+LR_ENC = [3e-2, 1.5e-2, 7e-3]  # TO FREEZE, PUT 0
+LR_DEC = [3e-1, 1.5e-1, 7e-2]
+MOM_ENC = [0.9, .9, 0.2]  # TO FREEZE, PUT 0
+MOM_DEC = [0.9, .9, 0.2] 
 WD_ENC = [1e-5] * 3  # TO FREEZE, PUT 0
 WD_DEC = [1e-5] * 3
 OPTIM_DEC = "sgd"
