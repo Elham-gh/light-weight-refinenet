@@ -289,10 +289,9 @@ def validate(segmenter, val_loader, epoch, num_classes=-1):
     with torch.no_grad():
         for i, sample in enumerate(val_loader):
             # start = time.time()
-            image = sample['image']
-            bpd = sample['bpd'][:, None, :, :]
-            input = torch.cat((image, bpd), 1)
-            target = sample["mask"]
+            # image = sample['image']
+            input = sample['bpd']
+            target = sample["mask"].cuda()
             input_var = torch.autograd.Variable(input).float().cuda()
             # Compute output
             output = segmenter(input_var)
