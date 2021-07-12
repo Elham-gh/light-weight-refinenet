@@ -135,7 +135,7 @@ class ResNetLW(nn.Module):
 
         self.conv1att = nn.Conv2d(1, 128, kernel_size=3, stride=2, padding=1, bias=False)
         self.conv2att = nn.Conv2d(128, 1, kernel_size=3, stride=2, padding=1)
-        self.bnatt = nn.BatchNorm2d(1)
+        self.bnatt = nn.BatchNorm2d(128)
         # self.conv3att = nn.Conv2d(256, 64, kernel_size=1)
         
         self.do = nn.Dropout(p=0.5)
@@ -217,7 +217,7 @@ class ResNetLW(nn.Module):
         l4 = self.do(l4)
         l3 = self.do(l3)
         
-        4 = self.p_ims1d2_outl1_dimred(l4)
+        x4 = self.p_ims1d2_outl1_dimred(l4)
         x4 = self.relu(x4)
         x4 = self.mflow_conv_g1_pool(x4)
         x4 = self.mflow_conv_g1_b3_joint_varout_dimred(x4)
@@ -251,12 +251,9 @@ class ResNetLW(nn.Module):
         x1 = x1 + x2
         x1 = F.relu(x1)
         x1 = self.mflow_conv_g4_pool(x1) #[2, 256, 125, 125]
-        x1 = torch.cat((x1, bpd, axis=1))
-        print('x1', x1.size())
+        x1 = torch.cat((x1, bpd), axis=1) #[1, 257, 125, 125]
         
-        out = self.clf_conv(x) #[6, 40, 125, 125] 
-        print('out', out.size())
-        hi
+        out = self.clf_conv(x1) #[6, 40, 125, 125] 
         
         return out
 
