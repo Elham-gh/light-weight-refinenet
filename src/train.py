@@ -288,9 +288,6 @@ def train_segmenter(
                     epoch, i, len(train_loader), losses.avg, lr_encoder, lr_decoder, batch_time.avg
                 )
             )
-        # l.append(losses.avg)
-
-    # l = np.mean(np.array(l))
     return los
 
 
