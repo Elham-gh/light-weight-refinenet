@@ -13,7 +13,7 @@ NORMALISE_PARAMS = [
     np.array([0.485, 0.456, 0.406]).reshape((1, 1, 3)),  # MEAN
     np.array([0.229, 0.224, 0.225]).reshape((1, 1, 3)),
 ]  # STD
-BATCH_SIZE = [12] * 3
+BATCH_SIZE = [1] * 3
 NUM_WORKERS = 4
 NUM_CLASSES = [40] * 3
 LOW_SCALE = [0.5] * 3
@@ -35,11 +35,11 @@ VAL_EVERY = [10] * 3  # how often to record validation scores
 RESUME = ''#'/content/drive/MyDrive/Super-BPD/LWR/ckpt4/'
 
 # OPTIMISERS' PARAMETERS
-LR_ENC = [1e-2, 5e-3, 2.5e-3]  # TO FREEZE, PUT 0
-LR_DEC = [1e-1, 5e-2, 2.5e-2]
+LR_ENC = [1e-6, 5e-3, 2.5e-3]  # TO FREEZE, PUT 0
+LR_DEC = [1e-5, 5e-2, 2.5e-2]
 
-MOM_ENC = [0.9] * 3  # TO FREEZE, PUT 0
-MOM_DEC = [0.9] * 3
+MOM_ENC = [0] * 3  # TO FREEZE, PUT 0
+MOM_DEC = [0] * 3
 WD_ENC = [1e-5] * 3  # TO FREEZE, PUT 0
 WD_DEC = [1e-5] * 3
 OPTIM_DEC = "sgd"
