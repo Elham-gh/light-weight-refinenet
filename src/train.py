@@ -220,7 +220,7 @@ def load_ckpt(ckpt_path, ckpt_dict, mode):
 
 
 def train_segmenter(
-    segmenter, train_loader, optim_enc, optim_dec, epoch, segm_crit, freeze_bn
+    segmenter, train_loader, optim_enc, optim_dec, epoch, segm_crit, freeze_bn, alpha
 ):
     """Training segmenter
     Args:
@@ -240,7 +240,27 @@ def train_segmenter(
                 m.eval()
     batch_time = AverageMeter()
     losses = AverageMeter()
+    l = []
+    for param_group in optim_enc.param_groups:
+        lr_enc = param_group['lr']
+    for param_group in optim_dec.param_groups:
+        lr_dec = param_group['lr']
+        
+    los = []
+    lr_e = []
+    lr_d = []
+
     for i, sample in enumerate(train_loader):
+        alpha 
+        lr_encoder = optim_enc.param_groups[0]['lr'] + .1 * alpha
+        lr_decoder = optim_dec.param_groups[0]['lr'] + alpha
+        lr_e.append(lr_encoder)
+        lr_d.append(lr_decoder)
+        alpha += .0000001 / 12
+        for param_group in optim_enc.param_groups:
+            param_group['lr'] = lr_encoder
+        for param_group in optim_dec.param_groups:
+            param_group['lr'] = lr_decoder
         start = time.time()
         input = sample['image']
         bpd = sample['bpd'][:, None, :, :]
@@ -256,6 +276,7 @@ def train_segmenter(
         soft_output = nn.LogSoftmax()(output)
         # Compute loss and backpropagate
         loss = segm_crit(soft_output, target_var)
+        torch.nn.utils.clip_grad_norm_(segmenter.parameters(), 0.25)
         optim_enc.zero_grad()
         optim_dec.zero_grad()
         loss.backward()
@@ -267,10 +288,17 @@ def train_segmenter(
             logger.info(
                 " Train epoch: {} [{}/{}]\t"
                 "Avg. Loss: {:.3f}\t"
+                "LR_enc: {:.5f}\t"
+                "LR_dec: {:.5f}\t"
+                "alpha: {:.5f}\t"
                 "Avg. Time: {:.3f}".format(
-                    epoch, i, len(train_loader), losses.avg, batch_time.avg
+                    epoch, i, len(train_loader), losses.avg, lr_encoder, lr_decoder, alpha, batch_time.avg
                 )
             )
+        # l.append(losses.avg)
+
+    # l = np.mean(np.array(l))
+    return los, lr_e, lr_d, alpha
 
 
 def validate(segmenter, val_loader, epoch, num_classes=-1):
@@ -370,6 +398,7 @@ def main():
         best_val=best_val, condition=lambda x, y: x > y)  # keep checkpoint with the best validation score
 
     logger.info(" Training Process Starts")
+    alpha = 0
     for task_idx in range(args.num_stages):
         start = time.time()
         torch.cuda.empty_cache()
@@ -389,10 +418,10 @@ def main():
         for k, v in segmenter.named_parameters():
             if bool(re.match(".*conv1.*|.*bn1.*|.*layer.*", k)):
                 enc_params.append(v)
-                logger.info(" Enc. parameter: {}".format(k))
+                # logger.info(" Enc. parameter: {}".format(k))
             else:
                 dec_params.append(v)
-                logger.info(" Dec. parameter: {}".format(k))
+                # logger.info(" Dec. parameter: {}".format(k))
         optim_enc, optim_dec = create_optimisers(args.lr_enc[task_idx], 
             args.lr_dec[task_idx], args.mom_enc[task_idx], args.mom_dec[task_idx],
             args.wd_enc[task_idx], args.wd_dec[task_idx], enc_params,
@@ -404,15 +433,34 @@ def main():
             optim_dec.load_state_dict(dec_opt())
             args.resume = False
             print('optimizer loaded')
-
+        losses = []
+        encoder_lrs = []
+        decoder_lrs = []
         for epoch in range(args.num_segm_epochs[task_idx]):
-            train_segmenter(segmenter, train_loader, optim_enc, optim_dec,
-                epoch_start, segm_crit, args.freeze_bn[task_idx])
+            # print('epoch_start', epoch_start, 'epoch_current', epoch_current)            
+            l, e, d, alpha = train_segmenter(segmenter, train_loader, optim_enc, optim_dec,
+                epoch_start, segm_crit, args.freeze_bn[task_idx], alpha)
+            losses += l
+            encoder_lrs += e
+            decoder_lrs += d
 
+            with open('./losses1.txt', 'w') as f:
+                for i in losses:
+                    f.write(str(i) + '\n')
+            with open('./encoder1.txt', 'w') as f:
+                for i in encoder_lrs:
+                    f.write(str(i) + '\n')
+            with open('./decoder1.txt', 'w') as f:
+                for i in decoder_lrs:
+                    f.write(str(i) + '\n')
+
+                
             if (epoch + 1) % (args.val_every[task_idx]) == 0:
                 miou = validate(segmenter, val_loader, epoch_start, args.num_classes[task_idx])
-                saver.save(miou, {'segmenter' : segmenter.state_dict(), 'epoch_start' : epoch_current}, {'epoch_start' : epoch_current},
-                                 {'opt_enc': optim_enc.state_dict(), 'opt_dec':optim_dec.state_dict})
+                saver.save(miou, {'segmenter' : segmenter.state_dict()}, {'epoch_start' : epoch_start},
+                                 {'opt_enc': optim_enc.state_dict(), 'opt_dec':optim_dec.state_dict()})
+                # iou.append(miou)                    
+            
             epoch_start += 1
         logger.info("Stage {} finished, time spent {:.3f}min".format(task_idx, (time.time() - start) / 60.0))
     logger.info("All stages are now finished. Best Val is {:.3f}".format(saver.best_val))
