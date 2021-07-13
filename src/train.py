@@ -205,6 +205,14 @@ def create_optimisers(
         optim_dec = torch.optim.Adam(
             param_dec, lr=lr_dec, weight_decay=wd_dec, eps=1e-3
         )
+    elif optim_dec == "ada":
+        optim_dec = torch.optim.Adagrad(
+            param_dec, lr=lr_dec, weight_decay=wd_dec, eps=1e-3
+        )
+    elif optim_dec == "rms":
+        optim_dec = torch.optim.RMSprop(
+            param_dec, lr=lr_dec, weight_decay=wd_dec, momentum=mom_dec, eps=1e-3
+        )
     return optim_enc, optim_dec
 
 
@@ -232,7 +240,7 @@ def train_segmenter(
       segm_crit (nn.Loss) : segmentation criterion
       freeze_bn (bool) : whether to keep BN params intact
     """
-    train_loader.dataset.set_stage("train")
+    # train_loader.dataset.set_stage("train")
     segmenter.train()
     if freeze_bn:
         for m in segmenter.modules():
@@ -248,6 +256,13 @@ def train_segmenter(
     los = []
 
     for i, sample in enumerate(train_loader):
+
+        
+        # for key in segmenter.state_dict().keys():
+        #   if torch.isnan((segmenter.state_dict()[key]).sum()) or torch.isinf((segmenter.state_dict()[key]).sum()):
+        #     print('parameter found')
+        #     print(key)
+        
         lr_encoder = optim_enc.param_groups[0]['lr']
         lr_decoder = optim_dec.param_groups[0]['lr']
         start = time.time()
@@ -258,11 +273,12 @@ def train_segmenter(
         bpd_var = torch.autograd.Variable(bpd).float()
         target_var = torch.autograd.Variable(target).long()
         # Compute output
-        output, bpd, x1 = segmenter(input_var, bpd_var)
-        print('x1 ', x1.min().item(), x1.max().item())
-        print('bpd', bpd.min().item(), bpd.max().item())
-        print('out', output.min().item(), output.max().item())
-        print('***********************************************')
+        output = segmenter(input_var, bpd_var)
+        # output, bpd, x1 = segmenter(input_var, bpd_var)
+        # print('x1 ', x1.min().item(), x1.max().item())
+        # print('bpd', bpd.min().item(), bpd.max().item())
+        # print('out', output.min().item(), output.max().item())
+        # print('***********************************************')
         output = nn.functional.interpolate(
             output, size=target_var.size()[1:], mode="bilinear", align_corners=False
         )
@@ -314,7 +330,7 @@ def validate(segmenter, val_loader, epoch, num_classes=-1):
             input_var = torch.autograd.Variable(input).float().cuda()
             bpd_var = torch.autograd.Variable(bpd).float().cuda()
             # Compute output
-            output, _, _ = segmenter(input_var, bpd_var)
+            output = segmenter(input_var, bpd_var)
             output = (
                 cv2.resize(
                     output[0, :num_classes].data.cpu().numpy().transpose(1, 2, 0),
@@ -422,10 +438,18 @@ def main():
         if args.resume:
             enc_opt, dec_opt = load_ckpt(args.resume, None, mode='opt')
             optim_enc.load_state_dict(enc_opt)
-            optim_dec.load_state_dict(dec_opt())
+            optim_dec.load_state_dict(dec_opt)
             args.resume = False
             print('optimizer loaded')
-        
+
+        for op in optim_enc.param_groups:
+          op['lr'] = 0.000025
+          op['momentum'] = .8
+
+        for op in optim_dec.param_groups:
+          op['lr'] = 0.00025
+          op['momentum'] = .8
+                  
         for epoch in range(args.num_segm_epochs[task_idx]):
             # print('epoch_start', epoch_start, 'epoch_current', epoch_current)            
             l = train_segmenter(segmenter, train_loader, optim_enc, optim_dec,
