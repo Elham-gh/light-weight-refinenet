@@ -29,6 +29,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import torch.nn as nn
 import torch.nn.functional as F
+import torch
 
 from utils.helpers import maybe_download
 from utils.layer_factory import conv1x1, conv3x3, CRPBlock
@@ -125,12 +126,18 @@ class Bottleneck(nn.Module):
         out = self.relu(out)
 
         return out
-
+      
 
 class ResNetLW(nn.Module):
     def __init__(self, block, layers, num_classes=21):
         self.inplanes = 64
         super(ResNetLW, self).__init__()
+
+        self.conv1att = nn.Conv2d(1, 128, kernel_size=3, stride=2, padding=1, bias=False)
+        self.conv2att = nn.Conv2d(128, 1, kernel_size=3, stride=2, padding=1)
+        self.bnatt = nn.BatchNorm2d(128)
+        # self.conv3att = nn.Conv2d(256, 64, kernel_size=1)
+        
         self.do = nn.Dropout(p=0.5)
         self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
         self.bn1 = nn.BatchNorm2d(64)
@@ -158,7 +165,7 @@ class ResNetLW(nn.Module):
         self.mflow_conv_g4_pool = self._make_crp(256, 256, 4)
 
         self.clf_conv = nn.Conv2d(
-            256, num_classes, kernel_size=3, stride=1, padding=1, bias=True
+            257, num_classes, kernel_size=3, stride=1, padding=1, bias=True
         )
 
     def _make_crp(self, in_planes, out_planes, stages):
@@ -187,49 +194,115 @@ class ResNetLW(nn.Module):
 
         return nn.Sequential(*layers)
 
-    def forward(self, x):
-        x = self.conv1(x)
+    def forward(self, x, bpd):
+      
+        # print(233, x.size()) #[6, 3, 500, 500]
+        # print(bpd.size()) #[12, 1, 500, 500]
+        
+        bpd = self.conv1att(bpd) #[12, 128, 250, 250]
+        bpd = self.bnatt(bpd)
+        # if torch.isnan(bpd.sum()):
+        #   print('bnatt')
+        bpd = self.conv2att(bpd) #[12, 1, 125, 125]
+        # bpd = self.conv3att(bpd) #[2, 64, 125, 125]
+        # if torch.isnan(bpd.sum()):
+        #   print('conv2att')
+        
+        x = self.conv1(x) #[6, 64, 125, 125]
+        # if torch.isnan(x.sum()):
+        #   print('conv1')
         x = self.bn1(x)
         x = self.relu(x)
         x = self.maxpool(x)
+        # if torch.isnan(x.sum()):
+        #   print('maxpoolconv1')
 
-        l1 = self.layer1(x)
-        l2 = self.layer2(l1)
-        l3 = self.layer3(l2)
-        l4 = self.layer4(l3)
+        l1 = self.layer1(x) #[6, 256, 125, 125]
+        # if torch.isnan(l1.sum()):
+        #   print('layer1')
+        l2 = self.layer2(l1) #[6, 512, 63, 63]
+        # if torch.isnan(l2.sum()):
+        #   print('layer2')
+        l3 = self.layer3(l2) #[6, 1024, 32, 32]
+        # if torch.isnan(l3.sum()):
+        #   print('layer3')
+        l4 = self.layer4(l3) #[6, 2048, 16, 16]
+        # if torch.isnan(l4.sum()):
+        #   print('layer4')
 
         l4 = self.do(l4)
         l3 = self.do(l3)
-
-        x4 = self.p_ims1d2_outl1_dimred(l4)
+        
+        x4 = self.p_ims1d2_outl1_dimred(l4) #[6, 512, 16, 16]
+        # if torch.isnan(x4.sum()):
+        #   print('x4p_')
         x4 = self.relu(x4)
-        x4 = self.mflow_conv_g1_pool(x4)
-        x4 = self.mflow_conv_g1_b3_joint_varout_dimred(x4)
-        x4 = nn.Upsample(size=l3.size()[2:], mode="bilinear", align_corners=True)(x4)
+        x4 = self.mflow_conv_g1_pool(x4) #[6, 512, 16, 16]
+        # if torch.isnan(x4.sum()):
+        #   print('x4m')
+        x4 = self.mflow_conv_g1_b3_joint_varout_dimred(x4) #[6, 256, 16, 16]
+        # if torch.isnan(x4.sum()):
+        #   print('x4mjoint')
+        x4 = nn.Upsample(size=l3.size()[2:], mode="bilinear", align_corners=True)(x4) #[6, 256, 32, 32]
+        # if torch.isnan(x4.sum()):
+        #   print('x4umsample')
 
-        x3 = self.p_ims1d2_outl2_dimred(l3)
-        x3 = self.adapt_stage2_b2_joint_varout_dimred(x3)
+        
+        x3 = self.p_ims1d2_outl2_dimred(l3) #[6, 256, 32, 32]
+        # if torch.isnan(x3.sum()):
+        #   print('x3p_')
+        x3 = self.adapt_stage2_b2_joint_varout_dimred(x3)  #[6, 256, 32, 32]
+        # if torch.isnan(x3.sum()):
+        #   print('x3adapt')
         x3 = x3 + x4
         x3 = F.relu(x3)
-        x3 = self.mflow_conv_g2_pool(x3)
-        x3 = self.mflow_conv_g2_b3_joint_varout_dimred(x3)
-        x3 = nn.Upsample(size=l2.size()[2:], mode="bilinear", align_corners=True)(x3)
-
-        x2 = self.p_ims1d2_outl3_dimred(l2)
-        x2 = self.adapt_stage3_b2_joint_varout_dimred(x2)
+        x3 = self.mflow_conv_g2_pool(x3) #[6, 256, 32, 32]
+        # if torch.isnan(x3.sum()):
+        #   print('x3m')
+        x3 = self.mflow_conv_g2_b3_joint_varout_dimred(x3) #[6, 256, 32, 32]
+        # if torch.isnan(x3.sum()):
+        #   print('x3mjoint')
+        x3 = nn.Upsample(size=l2.size()[2:], mode="bilinear", align_corners=True)(x3) #[6, 256, 63, 63]
+        # if torch.isnan(x3.sum()):
+        #   print('x3upsample')
+        
+        x2 = self.p_ims1d2_outl3_dimred(l2) #[6, 256, 63, 63]
+        # if torch.isnan(x2.sum()):
+        #   print('x2p_')
+        x2 = self.adapt_stage3_b2_joint_varout_dimred(x2) #[6, 256, 63, 63]
+        # if torch.isnan(x2.sum()):
+        #   print('x2adapt')
         x2 = x2 + x3
         x2 = F.relu(x2)
-        x2 = self.mflow_conv_g3_pool(x2)
-        x2 = self.mflow_conv_g3_b3_joint_varout_dimred(x2)
-        x2 = nn.Upsample(size=l1.size()[2:], mode="bilinear", align_corners=True)(x2)
-
-        x1 = self.p_ims1d2_outl4_dimred(l1)
-        x1 = self.adapt_stage4_b2_joint_varout_dimred(x1)
+        x2 = self.mflow_conv_g3_pool(x2) #[6, 256, 63, 63]
+        # if torch.isnan(x2.sum()):
+        #   print('x2m')
+        x2 = self.mflow_conv_g3_b3_joint_varout_dimred(x2) #[6, 256, 63, 63]
+        # if torch.isnan(x2.sum()):
+        #   print('x2mjoint')
+        #* x2 = torch.cat()
+        x2 = nn.Upsample(size=l1.size()[2:], mode="bilinear", align_corners=True)(x2) #[6, 256, 125, 125]
+        # if torch.isnan(x2.sum()):
+        #   print('x2upsample')
+        
+        x1 = self.p_ims1d2_outl4_dimred(l1) #[6, 256, 125, 125]
+        # if torch.isnan(x1.sum()):
+        #   print('x1p')
+        x1 = self.adapt_stage4_b2_joint_varout_dimred(x1) #[6, 256, 125, 125]
+        # if torch.isnan(x1.sum()):
+        #   print('x1adapt')
+        #* x1 = torch.cat()
         x1 = x1 + x2
         x1 = F.relu(x1)
-        x1 = self.mflow_conv_g4_pool(x1)
+        x1 = self.mflow_conv_g4_pool(x1) #[2, 256, 125, 125]
+        # if torch.isnan(x1.sum()):
+        #   print('x1m')
+        x1 = torch.cat((x1, bpd), axis=1) #[1, 257, 125, 125]
+        
+        out = self.clf_conv(x1) #[6, 40, 125, 125] 
+        # if torch.isnan(out.sum()):
+        #   print('out')
 
-        out = self.clf_conv(x1)
         return out
 
 
@@ -238,7 +311,11 @@ def rf_lw50(num_classes, imagenet=False, pretrained=True, **kwargs):
     if imagenet:
         key = "50_imagenet"
         url = models_urls[key]
-        model.load_state_dict(maybe_download(key, url), strict=False)
+        net = maybe_download(key, url)
+        # print(net['conv1.weight'].shape)
+        conv1b = net['conv1.weight'].mean(axis=1)[:, None, :, :]
+        net['conv1b.weight'] = conv1b
+        model.load_state_dict(net, strict=False)
     elif pretrained:
         dataset = data_info.get(num_classes, None)
         if dataset:
