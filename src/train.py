@@ -239,6 +239,7 @@ def train_segmenter(
             if isinstance(m, nn.BatchNorm2d):
                 m.eval()
     batch_time = AverageMeter()
+    torch.autograd.set_detect_anomaly(True)
     losses = AverageMeter()
     # for param_group in optim_enc.param_groups:
     #     lr_enc = param_group['lr']
@@ -249,10 +250,6 @@ def train_segmenter(
     for i, sample in enumerate(train_loader):
         lr_encoder = optim_enc.param_groups[0]['lr']
         lr_decoder = optim_dec.param_groups[0]['lr']
-        # for param_group in optim_enc.param_groups:
-        #     param_group['lr'] = lr_encoder
-        # for param_group in optim_dec.param_groups:
-        #     param_group['lr'] = lr_decoder
         start = time.time()
         input = sample['image']
         bpd = sample['bpd'][:, None, :, :]
@@ -261,7 +258,11 @@ def train_segmenter(
         bpd_var = torch.autograd.Variable(bpd).float()
         target_var = torch.autograd.Variable(target).long()
         # Compute output
-        output = segmenter(input_var, bpd_var)
+        output, bpd, x1 = segmenter(input_var, bpd_var)
+        print('x1 ', x1.min().item(), x1.max().item())
+        print('bpd', bpd.min().item(), bpd.max().item())
+        print('out', output.min().item(), output.max().item())
+        print('***********************************************')
         output = nn.functional.interpolate(
             output, size=target_var.size()[1:], mode="bilinear", align_corners=False
         )
@@ -313,7 +314,7 @@ def validate(segmenter, val_loader, epoch, num_classes=-1):
             input_var = torch.autograd.Variable(input).float().cuda()
             bpd_var = torch.autograd.Variable(bpd).float().cuda()
             # Compute output
-            output = segmenter(input_var, bpd_var)
+            output, _, _ = segmenter(input_var, bpd_var)
             output = (
                 cv2.resize(
                     output[0, :num_classes].data.cpu().numpy().transpose(1, 2, 0),
