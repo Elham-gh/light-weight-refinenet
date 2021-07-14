@@ -61,6 +61,7 @@ def get_arguments():
     parser.add_argument("--crop-size", type=int, nargs="+", default=CROP_SIZE, help="Crop size for training,")
     parser.add_argument("--normalise-params", type=list, default=NORMALISE_PARAMS, help="Normalisation parameters [scale, mean, std],")
     parser.add_argument("--batch-size", type=int, nargs="+", default=BATCH_SIZE, help="Batch size to train the segmenter model.")
+    parser.add_argument("--batch-mean", type=int, nargs="+", default=BATCH_MEAN, help="Manupilated batch size.")
     parser.add_argument("--num-workers", type=int, default=NUM_WORKERS, help="Number of workers for pytorch's dataloader.")
     parser.add_argument("--num-classes", type=int, nargs="+", default=NUM_CLASSES, help="Number of output classes for each task.")
     parser.add_argument("--low-scale", type=float, nargs="+", default=LOW_SCALE, help="Lower bound for random scale")
@@ -247,12 +248,10 @@ def train_segmenter(
     los = []
 
     for i, sample in enumerate(train_loader):
+      
         lr_encoder = optim_enc.param_groups[0]['lr']
         lr_decoder = optim_dec.param_groups[0]['lr']
-        # for param_group in optim_enc.param_groups:
-        #     param_group['lr'] = lr_encoder
-        # for param_group in optim_dec.param_groups:
-        #     param_group['lr'] = lr_decoder
+        
         start = time.time()
         input = sample['image']
         bpd = sample['bpd'][:, None, :, :]
@@ -268,26 +267,31 @@ def train_segmenter(
         soft_output = nn.LogSoftmax()(output)
         # Compute loss and backpropagate
         loss = segm_crit(soft_output, target_var)
-        torch.nn.utils.clip_grad_norm_(segmenter.parameters(), 0.25)
-        optim_enc.zero_grad()
-        optim_dec.zero_grad()
-        loss.backward()
-        optim_enc.step()
-        optim_dec.step()
-        losses.update(loss.item())
-        batch_time.update(time.time() - start)
-        los.append(loss.item())
+        print('loss', type(loss), loss.shape)
+        #* TODO: Accumulate losses
+        
+        if (i + 1) % args.batch_mean == 0:
+            #* TODO loss = mean(loss)
+            torch.nn.utils.clip_grad_norm_(segmenter.parameters(), 0.25)
+            optim_enc.zero_grad()
+            optim_dec.zero_grad()
+            loss.backward()
+            optim_enc.step()
+            optim_dec.step()
+            losses.update(loss.item())
+            batch_time.update(time.time() - start)
+            los.append(loss.item())
 
-        if i % args.print_every == 0:
-            logger.info(
-                " Train epoch: {} [{}/{}]\t"
-                "Avg. Loss: {:.3f}\t"
-                "LR_enc: {:.5f}\t"
-                "LR_dec: {:.5f}\t"
-                "Avg. Time: {:.3f}".format(
-                    epoch, i, len(train_loader), losses.avg, lr_encoder, lr_decoder, batch_time.avg
+            if i % args.print_every == 0:
+                logger.info(
+                    " Train epoch: {} [{}/{}]\t"
+                    "Avg. Loss: {:.3f}\t"
+                    "LR_enc: {:.5f}\t"
+                    "LR_dec: {:.5f}\t"
+                    "Avg. Time: {:.3f}".format(
+                        epoch, i, len(train_loader), losses.avg, lr_encoder, lr_decoder, batch_time.avg
+                    )
                 )
-            )
     return los
 
 
