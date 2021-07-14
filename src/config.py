@@ -14,6 +14,7 @@ NORMALISE_PARAMS = [
     np.array([0.229, 0.224, 0.225]).reshape((1, 1, 3)),
 ]  # STD
 BATCH_SIZE = [1] * 3
+BATCH_MEAN = [12] * 3
 NUM_WORKERS = 4
 NUM_CLASSES = [40] * 3
 LOW_SCALE = [0.5] * 3
