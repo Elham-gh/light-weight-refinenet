@@ -133,9 +133,9 @@ class ResNetLW(nn.Module):
         self.inplanes = 64
         super(ResNetLW, self).__init__()
 
-        self.conv1att = nn.Conv2d(1, 128, kernel_size=3, stride=2, padding=1, bias=False)
-        self.conv2att = nn.Conv2d(128, 1, kernel_size=3, stride=2, padding=1)
-        self.bnatt = nn.BatchNorm2d(128)
+        self.conv_att1 = nn.Conv2d(1, 64, kernel_size=3, stride=2, padding=1, bias=False)
+        self.conv_att2 = nn.Conv2d(64, 1, kernel_size=3, stride=2, padding=1, bias=False)
+        self.bnatt = nn.BatchNorm2d(64)
         # self.conv3att = nn.Conv2d(256, 64, kernel_size=1)
         
         self.do = nn.Dropout(p=0.5)
@@ -199,9 +199,9 @@ class ResNetLW(nn.Module):
         # print(233, x.size()) #[6, 3, 500, 500]
         # print(bpd.size()) #[12, 1, 500, 500]
         
-        bpd = self.conv1att(bpd) #[12, 128, 250, 250]
+        bpd = self.conv_att1(bpd) #[12, 128, 250, 250]
         bpd = self.bnatt(bpd)
-        bpd = self.conv2att(bpd) #[12, 1, 125, 125]
+        bpd = self.conv_att2(bpd) #[12, 1, 125, 125]
         # bpd = self.conv3att(bpd) #[2, 64, 125, 125]
         
         x = self.conv1(x) #[6, 64, 125, 125]
