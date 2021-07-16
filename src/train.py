@@ -267,10 +267,21 @@ def train_segmenter(
         lr_decoder = optim_dec.param_groups[0]['lr']
         start = time.time()
         input = sample['image']
-        bpd = sample['bpd'][:, None, :, :]
+        bpd = sample['bpd'].unsqueeze(1)
+        # if torch.isnan(bpd.sum()):
+        #   print(sample['name'])
+        #   print('*********** DATALOADER IS CREATING NAN ************')
+          
         target = sample["mask"].cuda()
         input_var = torch.autograd.Variable(input).float()
         bpd_var = torch.autograd.Variable(bpd).float()
+        # if torch.isnan(bpd_var.sum()):
+        #   print(sample['name'])
+        #   print('*********** AUTOGRAD IS CREATING NAN ************')
+        #   HI
+        # continue
+        # print('\nit doesnt continue\n')
+
         target_var = torch.autograd.Variable(target).long()
         # Compute output
         output = segmenter(input_var, bpd_var)
@@ -435,20 +446,12 @@ def main():
             args.wd_enc[task_idx], args.wd_dec[task_idx], enc_params,
             dec_params, args.optim_dec)
 
-        if args.resume:
-            enc_opt, dec_opt = load_ckpt(args.resume, None, mode='opt')
-            optim_enc.load_state_dict(enc_opt)
-            optim_dec.load_state_dict(dec_opt)
-            args.resume = False
-            print('optimizer loaded')
-
-        for op in optim_enc.param_groups:
-          op['lr'] = 0.000025
-          op['momentum'] = .8
-
-        for op in optim_dec.param_groups:
-          op['lr'] = 0.00025
-          op['momentum'] = .8
+        # if args.resume:
+        #     enc_opt, dec_opt = load_ckpt(args.resume, None, mode='opt')
+        #     optim_enc.load_state_dict(enc_opt)
+        #     optim_dec.load_state_dict(dec_opt)
+        #     args.resume = False
+        #     print('optimizer loaded')
                   
         for epoch in range(args.num_segm_epochs[task_idx]):
             # print('epoch_start', epoch_start, 'epoch_current', epoch_current)            
