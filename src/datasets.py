@@ -164,7 +164,7 @@ class Normalise(object):
         bpd = sample["bpd"]
         image = (self.scale * image - self.mean) / self.std
         bpd = ((bpd - np.min(bpd)) / (np.max(bpd) - np.min(bpd))) * 255
-        bpd = (self.scale * bpd - self.mean.mean(axis=2)) / self.std.mean(axis=2)
+        # bpd = (self.scale * bpd - self.mean.mean(axis=2)) / self.std.mean(axis=2)
         return {
             "image": image, 
             "mask": sample["mask"],
