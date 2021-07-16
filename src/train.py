@@ -240,11 +240,12 @@ def train_segmenter(
                 m.eval()
     batch_time = AverageMeter()
     losses = AverageMeter()
+    batch_loss = 0
+    los = []
     for i, sample in enumerate(train_loader):
         start = time.time()
         image = sample['image']
-        bpd = sample['bpd'][:, None, :, :]
-        
+        bpd = sample['bpd'].unsqueeze(1)
         input = torch.cat((image, bpd), 1)
         target = sample["mask"].cuda()
         input_var = torch.autograd.Variable(input).float()
@@ -257,21 +258,29 @@ def train_segmenter(
         soft_output = nn.LogSoftmax()(output)
         # Compute loss and backpropagate
         loss = segm_crit(soft_output, target_var)
-        optim_enc.zero_grad()
-        optim_dec.zero_grad()
-        loss.backward()
-        optim_enc.step()
-        optim_dec.step()
-        losses.update(loss.item())
-        batch_time.update(time.time() - start)
-        if i % args.print_every == 0:
-            logger.info(
-                " Train epoch: {} [{}/{}]\t"
-                "Avg. Loss: {:.3f}\t"
-                "Avg. Time: {:.3f}".format(
-                    epoch, i, len(train_loader), losses.avg, batch_time.avg
+        print(type(loss))
+        print(loss)
+        hi
+        batch_loss += loss
+        if (i + 1) % args.batch_mean == 0:
+            loss = batch_loss / args.batch_mean
+            los.append(loss.item())
+            optim_enc.zero_grad()
+            optim_dec.zero_grad()
+            loss.backward()
+            optim_enc.step()
+            optim_dec.step()
+            losses.update(loss.item())
+            batch_time.update(time.time() - start)
+            if i % args.print_every == 0:
+                logger.info(
+                    " Train epoch: {} [{}/{}]\t"
+                    "Avg. Loss: {:.3f}\t"
+                    "Avg. Time: {:.3f}".format(
+                        epoch, i, len(train_loader), losses.avg, batch_time.avg
+                    )
                 )
-            )
+    return los
 
 
 def validate(segmenter, val_loader, epoch, num_classes=-1):
@@ -371,6 +380,8 @@ def main():
         best_val=best_val, condition=lambda x, y: x > y)  # keep checkpoint with the best validation score
 
     logger.info(" Training Process Starts")
+    losses = []
+    
     for task_idx in range(args.num_stages):
         start = time.time()
         torch.cuda.empty_cache()
@@ -407,9 +418,15 @@ def main():
             print('optimizer loaded')
 
         for epoch in range(args.num_segm_epochs[task_idx]):
-            train_segmenter(segmenter, train_loader, optim_enc, optim_dec,
+            l = train_segmenter(segmenter, train_loader, optim_enc, optim_dec,
                 epoch_start, segm_crit, args.freeze_bn[task_idx])
+            
+            losses += l
 
+            with open('./loss.txt', 'w') as f:
+                for i in losses:
+                    f.write(str(i) + '\n')
+                
             if (epoch + 1) % (args.val_every[task_idx]) == 0:
                 miou = validate(segmenter, val_loader, epoch_start, args.num_classes[task_idx])
                 saver.save(miou, {'segmenter' : segmenter.state_dict(), 'epoch_start' : epoch_current}, {'epoch_start' : epoch_current},
