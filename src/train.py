@@ -61,6 +61,7 @@ def get_arguments():
     parser.add_argument("--crop-size", type=int, nargs="+", default=CROP_SIZE, help="Crop size for training,")
     parser.add_argument("--normalise-params", type=list, default=NORMALISE_PARAMS, help="Normalisation parameters [scale, mean, std],")
     parser.add_argument("--batch-size", type=int, nargs="+", default=BATCH_SIZE, help="Batch size to train the segmenter model.")
+    parser.add_argument("--batch-mean", type=int, nargs="+", default=BATCH_MEAN, help="Batch size to train, manipulated")
     parser.add_argument("--num-workers", type=int, default=NUM_WORKERS, help="Number of workers for pytorch's dataloader.")
     parser.add_argument("--num-classes", type=int, nargs="+", default=NUM_CLASSES, help="Number of output classes for each task.")
     parser.add_argument("--low-scale", type=float, nargs="+", default=LOW_SCALE, help="Lower bound for random scale")
@@ -258,16 +259,15 @@ def train_segmenter(
         soft_output = nn.LogSoftmax()(output)
         # Compute loss and backpropagate
         loss = segm_crit(soft_output, target_var)
-        print(type(loss))
-        print(loss)
-        hi
         batch_loss += loss
+        print(type(batch_loss))
+        print(batch_loss)
         if (i + 1) % args.batch_mean == 0:
             loss = batch_loss / args.batch_mean
             los.append(loss.item())
             optim_enc.zero_grad()
             optim_dec.zero_grad()
-            loss.backward()
+            loss.backward(retain_graph=True)
             optim_enc.step()
             optim_dec.step()
             losses.update(loss.item())
@@ -401,10 +401,10 @@ def main():
         for k, v in segmenter.named_parameters():
             if bool(re.match(".*conv1.*|.*bn1.*|.*layer.*", k)):
                 enc_params.append(v)
-                logger.info(" Enc. parameter: {}".format(k))
+                # logger.info(" Enc. parameter: {}".format(k))
             else:
                 dec_params.append(v)
-                logger.info(" Dec. parameter: {}".format(k))
+                # logger.info(" Dec. parameter: {}".format(k))
         optim_enc, optim_dec = create_optimisers(args.lr_enc[task_idx], 
             args.lr_dec[task_idx], args.mom_enc[task_idx], args.mom_dec[task_idx],
             args.wd_enc[task_idx], args.wd_dec[task_idx], enc_params,
