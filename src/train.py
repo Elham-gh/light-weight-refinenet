@@ -241,9 +241,11 @@ def train_segmenter(
                 m.eval()
     batch_time = AverageMeter()
     losses = AverageMeter()
-    batch_loss = 0
+    # batch_loss = 0
     los = []
     for i, sample in enumerate(train_loader):
+        lr_enc = optim_enc.state_dict()['param_groups'][0]['lr']
+        lr_dec = optim_dec.state_dict()['param_groups'][0]['lr']
         start = time.time()
         image = sample['image']
         bpd = sample['bpd'].unsqueeze(1)
@@ -259,27 +261,29 @@ def train_segmenter(
         soft_output = nn.LogSoftmax()(output)
         # Compute loss and backpropagate
         loss = segm_crit(soft_output, target_var)
-        batch_loss += loss
-        print(type(batch_loss))
-        print(batch_loss)
-        if (i + 1) % args.batch_mean == 0:
-            loss = batch_loss / args.batch_mean
-            los.append(loss.item())
-            optim_enc.zero_grad()
-            optim_dec.zero_grad()
-            loss.backward(retain_graph=True)
-            optim_enc.step()
-            optim_dec.step()
-            losses.update(loss.item())
-            batch_time.update(time.time() - start)
-            if i % args.print_every == 0:
-                logger.info(
-                    " Train epoch: {} [{}/{}]\t"
-                    "Avg. Loss: {:.3f}\t"
-                    "Avg. Time: {:.3f}".format(
-                        epoch, i, len(train_loader), losses.avg, batch_time.avg
-                    )
+        # batch_loss += loss
+        # print(type(batch_loss))
+        # print(batch_loss)
+        # if (i + 1) % args.batch_mean == 0:
+        #     loss = batch_loss / args.batch_mean
+        los.append(loss.item())
+        optim_enc.zero_grad()
+        optim_dec.zero_grad()
+        loss.backward(retain_graph=True)
+        optim_enc.step()
+        optim_dec.step()
+        losses.update(loss.item())
+        batch_time.update(time.time() - start)
+        if i % args.print_every == 0:
+            logger.info(
+                " Train epoch: {} [{}/{}]\t"
+                "Avg. Loss: {:.3f}\t"
+                "lr_enc: {:.6f}\t"
+                "lr_dec: {:.6f}\t"
+                "Avg. Time: {:.3f}".format(
+                    epoch, i, len(train_loader), losses.avg, lr_enc, lr_dec, batch_time.avg
                 )
+            )
     return los
 
 
@@ -410,12 +414,15 @@ def main():
             args.wd_enc[task_idx], args.wd_dec[task_idx], enc_params,
             dec_params, args.optim_dec)
 
-        if args.resume:
-            enc_opt, dec_opt = load_ckpt(args.resume, None, mode='opt')
-            optim_enc.load_state_dict(enc_opt)
-            optim_dec.load_state_dict(dec_opt())
-            args.resume = False
-            print('optimizer loaded')
+        scheduler = torch.optim.lr_scheduler.OneCycleLR(optim_dec, max_lr=0.005, 
+            total_steps=300, steps_per_epoch=len(train_loader), verbose=True)
+
+        # if args.resume:
+        #     enc_opt, dec_opt = load_ckpt(args.resume, None, mode='opt')
+        #     optim_enc.load_state_dict(enc_opt)
+        #     optim_dec.load_state_dict(dec_opt())
+        #     args.resume = False
+        #     print('optimizer loaded')
 
         for epoch in range(args.num_segm_epochs[task_idx]):
             l = train_segmenter(segmenter, train_loader, optim_enc, optim_dec,
@@ -431,6 +438,7 @@ def main():
                 miou = validate(segmenter, val_loader, epoch_start, args.num_classes[task_idx])
                 saver.save(miou, {'segmenter' : segmenter.state_dict(), 'epoch_start' : epoch_current}, {'epoch_start' : epoch_current},
                                  {'opt_enc': optim_enc.state_dict(), 'opt_dec':optim_dec.state_dict})
+            scheduler.step()
             epoch_start += 1
         logger.info("Stage {} finished, time spent {:.3f}min".format(task_idx, (time.time() - start) / 60.0))
     logger.info("All stages are now finished. Best Val is {:.3f}".format(saver.best_val))
