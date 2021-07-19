@@ -1,14 +1,20 @@
 """RefineNet-LightWeight
+
 RefineNet-LigthWeight PyTorch for non-commercial purposes
+
 Copyright (c) 2018, Vladimir Nekrasov (vladimir.nekrasov@adelaide.edu.au)
 All rights reserved.
+
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
+
 * Redistributions of source code must retain the above copyright notice, this
   list of conditions and the following disclaimer.
+
 * Redistributions in binary form must reproduce the above copyright notice,
   this list of conditions and the following disclaimer in the documentation
   and/or other materials provided with the distribution.
+
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -71,10 +77,11 @@ class Pad(object):
         mask = np.pad(mask, pad, mode="constant", constant_values=self.msk_val)
         bpd = np.pad(bpd, pad, mode="constant", constant_values=self.bpd_val)
         return {"image": image, "mask": mask, "name": sample["name"], "bpd": bpd}
-
+        
 
 class RandomCrop(object):
     """Crop randomly the image in a sample.
+
     Args:
         output_size (tuple or int): Desired output size. If int, square crop
             is made.
@@ -87,16 +94,16 @@ class RandomCrop(object):
             self.crop_size -= 1
 
     def __call__(self, sample):
-        image, mask, bpd = sample["image"], sample["mask"], sample["bpd"]
+        image, bpd, mask = sample["image"], sample["bpd"], sample["mask"]
         h, w = image.shape[:2]
         new_h = min(h, self.crop_size)
         new_w = min(w, self.crop_size)
         top = np.random.randint(0, h - new_h + 1)
         left = np.random.randint(0, w - new_w + 1)
         image = image[top : top + new_h, left : left + new_w]
-        mask = mask[top : top + new_h, left : left + new_w]
         bpd = bpd[top : top + new_h, left : left + new_w]
-        return {"image": image, "mask": mask, "name": sample["name"], "bpd": bpd}
+        mask = mask[top : top + new_h, left : left + new_w]
+        return {"image": image, "bpd": bpd, "name": sample["name"], "mask": mask}
 
 
 class ResizeShorterScale(object):
@@ -109,7 +116,7 @@ class ResizeShorterScale(object):
         self.high_scale = high_scale
 
     def __call__(self, sample):
-        image, mask, bpd = sample["image"], sample["mask"], sample["bpd"]
+        image, bpd, mask = sample["image"], sample["bpd"], sample["mask"]
         min_side = min(image.shape[:2])
         scale = np.random.uniform(self.low_scale, self.high_scale)
         if min_side * scale < self.shorter_side:
@@ -118,13 +125,12 @@ class ResizeShorterScale(object):
             image, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC
         )
         bpd = cv2.resize(
-            bpd, None, fx=scale, fy=scale, interpolation=cv2.INTER_NEAREST  
+            bpd, None, fx=scale, fy=scale, interpolation=cv2.INTER_NEAREST
         )
-        
         mask = cv2.resize(
             mask, None, fx=scale, fy=scale, interpolation=cv2.INTER_NEAREST
         )
-        return {"image": image, "mask": mask, "name": sample["name"], "bpd": bpd}
+        return {"image": image, "bpd": bpd, "name": sample["name"], "mask": mask}
 
 
 class RandomMirror(object):
@@ -134,13 +140,13 @@ class RandomMirror(object):
         pass
 
     def __call__(self, sample):
-        image, mask, bpd = sample["image"], sample["mask"], sample["bpd"]
+        image, bpd, mask = sample["image"], sample["bpd"], sample["mask"]
         do_mirror = np.random.randint(2)
         if do_mirror:
             image = cv2.flip(image, 1)
             mask = cv2.flip(mask, 1)
             bpd = cv2.flip(bpd, 1)
-        return {"image": image, "mask": mask, "name": sample["name"], "bpd": bpd}
+        return {"image": image, "bpd": bpd, "name": sample["name"], "mask": mask}
 
 
 class Normalise(object):
@@ -148,6 +154,7 @@ class Normalise(object):
     Given mean: (R, G, B) and std: (R, G, B),
     will normalise each channel of the torch.*Tensor, i.e.
     channel = (channel - mean) / std
+
     Args:
         mean (sequence): Sequence of means for R, G, B channels respecitvely.
         std (sequence): Sequence of standard deviations for R, G, B channels
@@ -160,32 +167,28 @@ class Normalise(object):
         self.std = std
 
     def __call__(self, sample):
-        image = sample["image"]
-        bpd = sample["bpd"]
+        image, bpd = sample["image"], sample["bpd"]
         image = (self.scale * image - self.mean) / self.std
-        bpd = ((bpd - np.min(bpd)) / (np.max(bpd) - np.min(bpd))) # * 255
-        # bpd = (self.scale * bpd - self.mean.mean(axis=2)) / self.std.mean(axis=2)
+        bpd = (bpd - bpd.min()) / (bpd.max() - bpd.min())
         return {
-            "image": image, 
-            "mask": sample["mask"],
+            "image": image,
+            "bpd": bpd,
             "name": sample["name"],
-            "bpd": bpd
+            "mask": sample["mask"],
         }
-
 
 
 class ToTensor(object):
     """Convert ndarrays in sample to Tensors."""
 
     def __call__(self, sample):
-        image, mask = sample["image"], sample["mask"]
+        image, bpd, name, mask = sample["image"], sample["bpd"], sample["name"], sample["mask"]
         # swap color axis because
         # numpy image: H x W x C
         # torch image: C X H X W
         image = image.transpose((2, 0, 1))
-        d = {"image": torch.from_numpy(image), "mask": torch.from_numpy(mask),
-            "name": sample["name"], "bpd": torch.from_numpy(sample["bpd"])}
-        return d
+        return {"image": torch.from_numpy(image), "bpd": torch.from_numpy(bpd), 
+        "name": name, "mask": torch.from_numpy(mask)}
 
 
 class NYUDataset(Dataset):
@@ -199,7 +202,7 @@ class NYUDataset(Dataset):
             transform_{trn, val} (callable, optional): Optional transform to be applied
                 on a sample.
         """
-        with open(data_file, "rb") as f:###* rb
+        with open(data_file, "rb") as f:###* 
             datalist = f.readlines()
         self.datalist = [i[:6].decode("utf-8") + '.png' for i in datalist]
         self.root_dir = data_dir
