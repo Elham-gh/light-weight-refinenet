@@ -634,11 +634,9 @@ def main():
                 miou = validate(
                     segmenter, val_loader, epoch_start, args.num_classes[task_idx]
                 )
-                saver.save(
-                    miou,
-                    {"segmenter": segmenter.state_dict(), "epoch_start": epoch_start},
-                    logger,
-                )
+                saver.save(miou, {'segmenter' : segmenter.state_dict()}, {'epoch_start' : epoch_current}, 
+                {'scheduler': scheduler.state_dict()}, {'opt_enc': optim_enc.state_dict(), 
+                'opt_dec':optim_dec.state_dict()})
             epoch_start += 1
         logger.info(
             "Stage {} finished, time spent {:.3f}min".format(
