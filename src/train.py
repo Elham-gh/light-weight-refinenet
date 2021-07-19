@@ -1,14 +1,20 @@
 """RefineNet-LightWeight
+
 RefineNet-LigthWeight PyTorch for non-commercial purposes
+
 Copyright (c) 2018, Vladimir Nekrasov (vladimir.nekrasov@adelaide.edu.au)
 All rights reserved.
+
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
+
 * Redistributions of source code must retain the above copyright notice, this
   list of conditions and the following disclaimer.
+
 * Redistributions in binary form must reproduce the above copyright notice,
   this list of conditions and the following disclaimer in the documentation
   and/or other materials provided with the distribution.
+
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -28,7 +34,6 @@ import os
 import random
 import re
 import time
-import pickle
 
 # misc
 import cv2
@@ -46,50 +51,216 @@ from util import *
 
 def get_arguments():
     """Parse all the arguments provided from the CLI.
+
     Returns:
       A list of parsed arguments.
     """
     parser = argparse.ArgumentParser(description="Full Pipeline Training")
-    
+
     # Dataset
-    parser.add_argument("--train-dir", type=str, default=TRAIN_DIR, help="Path to the training set directory.")
-    parser.add_argument("--val-dir", type=str, default=VAL_DIR, help="Path to the validation set directory.")
-    parser.add_argument("--train-list", type=str, nargs="+", default=TRAIN_LIST, help="Path to the training set list.")
-    parser.add_argument("--val-list", type=str, nargs="+", default=VAL_LIST, help="Path to the validation set list.")
-    parser.add_argument("--bpd-dir", type=str, default=BPD_DIR, help="Path to the BPD dictionary.")
-    parser.add_argument("--shorter-side", type=int, nargs="+", default=SHORTER_SIDE, help="Shorter side transformation.")
-    parser.add_argument("--crop-size", type=int, nargs="+", default=CROP_SIZE, help="Crop size for training,")
-    parser.add_argument("--normalise-params", type=list, default=NORMALISE_PARAMS, help="Normalisation parameters [scale, mean, std],")
-    parser.add_argument("--batch-size", type=int, nargs="+", default=BATCH_SIZE, help="Batch size to train the segmenter model.")
-    parser.add_argument("--num-workers", type=int, default=NUM_WORKERS, help="Number of workers for pytorch's dataloader.")
-    parser.add_argument("--num-classes", type=int, nargs="+", default=NUM_CLASSES, help="Number of output classes for each task.")
-    parser.add_argument("--low-scale", type=float, nargs="+", default=LOW_SCALE, help="Lower bound for random scale")
-    parser.add_argument("--high-scale", type=float, nargs="+", default=HIGH_SCALE, help="Upper bound for random scale")
-    parser.add_argument("--ignore-label", type=int, default=IGNORE_LABEL, help="Label to ignore during training")
+    parser.add_argument(
+        "--train-dir",
+        type=str,
+        default=TRAIN_DIR,
+        help="Path to the training set directory.",
+    )
+    parser.add_argument(
+        "--val-dir",
+        type=str,
+        default=VAL_DIR,
+        help="Path to the validation set directory.",
+    )
+    parser.add_argument(
+        "--bpd-dir",
+        type=str,
+        default=BPD_DIR,
+        help="Path to the BPDs.",
+    )
+    parser.add_argument(
+        "--train-list",
+        type=str,
+        nargs="+",
+        default=TRAIN_LIST,
+        help="Path to the training set list.",
+    )
+    parser.add_argument(
+        "--val-list",
+        type=str,
+        nargs="+",
+        default=VAL_LIST,
+        help="Path to the validation set list.",
+    )
+    parser.add_argument(
+        "--shorter-side",
+        type=int,
+        nargs="+",
+        default=SHORTER_SIDE,
+        help="Shorter side transformation.",
+    )
+    parser.add_argument(
+        "--crop-size",
+        type=int,
+        nargs="+",
+        default=CROP_SIZE,
+        help="Crop size for training,",
+    )
+    parser.add_argument(
+        "--normalise-params",
+        type=list,
+        default=NORMALISE_PARAMS,
+        help="Normalisation parameters [scale, mean, std],",
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        nargs="+",
+        default=BATCH_SIZE,
+        help="Batch size to train the segmenter model.",
+    )
+    parser.add_argument(
+        "--num-workers",
+        type=int,
+        default=NUM_WORKERS,
+        help="Number of workers for pytorch's dataloader.",
+    )
+    parser.add_argument(
+        "--num-classes",
+        type=int,
+        nargs="+",
+        default=NUM_CLASSES,
+        help="Number of output classes for each task.",
+    )
+    parser.add_argument(
+        "--low-scale",
+        type=float,
+        nargs="+",
+        default=LOW_SCALE,
+        help="Lower bound for random scale",
+    )
+    parser.add_argument(
+        "--high-scale",
+        type=float,
+        nargs="+",
+        default=HIGH_SCALE,
+        help="Upper bound for random scale",
+    )
+    parser.add_argument(
+        "--ignore-label",
+        type=int,
+        default=IGNORE_LABEL,
+        help="Label to ignore during training",
+    )
 
     # Encoder
     parser.add_argument("--enc", type=str, default=ENC, help="Encoder net type.")
-    parser.add_argument("--enc-pretrained", type=bool, default=ENC_PRETRAINED, help="Whether to init with imagenet weights.")
-    parser.add_argument("--resume", default=RESUME, type=str, metavar="PATH", help="path to latest checkpoint")
-    
+    parser.add_argument(
+        "--enc-pretrained",
+        type=bool,
+        default=ENC_PRETRAINED,
+        help="Whether to init with imagenet weights.",
+    )
     # General
-    parser.add_argument("--evaluate", type=bool, default=EVALUATE, help="If true, only validate segmentation.")
-    parser.add_argument("--freeze-bn", type=bool, nargs="+", default=FREEZE_BN, help="Whether to keep batch norm statistics intact.")
-    parser.add_argument("--num-segm-epochs", type=int, nargs="+", default=NUM_SEGM_EPOCHS, help="Number of epochs to train for segmentation network.")
-    parser.add_argument("--print-every", type=int, default=PRINT_EVERY, help="Print information every often.")
-    parser.add_argument("--random-seed", type=int, default=RANDOM_SEED, help="Seed to provide (near-)reproducibility.")
-    # parser.add_argument("--snapshot-dir", type=str, default=SNAPSHOT_DIR, help="Path to directory for storing checkpoints.")
-    parser.add_argument("--ckpt-path", type=str, default=CKPT_PATH, help="Path to the checkpoint file." )
-    parser.add_argument("--val-every", nargs="+", type=int, default=VAL_EVERY, help="How often to validate current architecture.")
+    parser.add_argument(
+        "--evaluate",
+        type=bool,
+        default=EVALUATE,
+        help="If true, only validate segmentation.",
+    )
+    parser.add_argument(
+        "--freeze-bn",
+        type=bool,
+        nargs="+",
+        default=FREEZE_BN,
+        help="Whether to keep batch norm statistics intact.",
+    )
+    parser.add_argument(
+        "--num-segm-epochs",
+        type=int,
+        nargs="+",
+        default=NUM_SEGM_EPOCHS,
+        help="Number of epochs to train for segmentation network.",
+    )
+    parser.add_argument(
+        "--print-every",
+        type=int,
+        default=PRINT_EVERY,
+        help="Print information every often.",
+    )
+    parser.add_argument(
+        "--random-seed",
+        type=int,
+        default=RANDOM_SEED,
+        help="Seed to provide (near-)reproducibility.",
+    )
+    parser.add_argument(
+        "--resume",
+        type=str,
+        default=RESUME,
+        help="Path to directory for storing checkpoints.",
+    )
+    parser.add_argument(
+        "--ckpt-path", 
+        type=str, 
+        default=CKPT_PATH, 
+        help="Path to the checkpoint file.",
+    )
+    parser.add_argument(
+        "--val-every",
+        nargs="+",
+        type=int,
+        default=VAL_EVERY,
+        help="How often to validate current architecture.",
+    )
 
     # Optimisers
-    parser.add_argument("--lr-enc", type=float, nargs="+", default=LR_ENC, help="Learning rate for encoder.")
-    parser.add_argument("--lr-dec", type=float, nargs="+", default=LR_DEC, help="Learning rate for decoder.")
-    parser.add_argument("--mom-enc", type=float, nargs="+", default=MOM_ENC, help="Momentum for encoder.")
-    parser.add_argument("--mom-dec", type=float, nargs="+", default=MOM_DEC, help="Momentum for decoder.")
-    parser.add_argument("--wd-enc", type=float, nargs="+", default=WD_ENC, help="Weight decay for encoder.")
-    parser.add_argument("--wd-dec", type=float, nargs="+", default=WD_DEC, help="Weight decay for decoder.")
-    parser.add_argument("--optim-dec", type=str, default=OPTIM_DEC, help="Optimiser algorithm for decoder.")
+    parser.add_argument(
+        "--lr-enc",
+        type=float,
+        nargs="+",
+        default=LR_ENC,
+        help="Learning rate for encoder.",
+    )
+    parser.add_argument(
+        "--lr-dec",
+        type=float,
+        nargs="+",
+        default=LR_DEC,
+        help="Learning rate for decoder.",
+    )
+    parser.add_argument(
+        "--mom-enc",
+        type=float,
+        nargs="+",
+        default=MOM_ENC,
+        help="Momentum for encoder.",
+    )
+    parser.add_argument(
+        "--mom-dec",
+        type=float,
+        nargs="+",
+        default=MOM_DEC,
+        help="Momentum for decoder.",
+    )
+    parser.add_argument(
+        "--wd-enc",
+        type=float,
+        nargs="+",
+        default=WD_ENC,
+        help="Weight decay for encoder.",
+    )
+    parser.add_argument(
+        "--wd-dec",
+        type=float,
+        nargs="+",
+        default=WD_DEC,
+        help="Weight decay for decoder.",
+    )
+    parser.add_argument(
+        "--optim-dec",
+        type=str,
+        default=OPTIM_DEC,
+        help="Optimiser algorithm for decoder.",
+    )
     return parser.parse_args()
 
 
@@ -107,9 +278,21 @@ def create_segmenter(net, pretrained, num_classes):
         raise ValueError("{} is not supported".format(str(net)))
 
 
-def create_loaders(train_dir, val_dir, train_list, val_list, bpd_dir, shorter_side, #***
-    crop_size, low_scale, high_scale, normalise_params, batch_size,
-    num_workers, ignore_label):
+def create_loaders(
+    train_dir,
+    val_dir,
+    bpd_dir,
+    train_list,
+    val_list,
+    shorter_side,
+    crop_size,
+    low_scale,
+    high_scale,
+    normalise_params,
+    batch_size,
+    num_workers,
+    ignore_label,
+):
     """
     Args:
       train_dir (str) : path to the root directory of the training set.
@@ -124,8 +307,10 @@ def create_loaders(train_dir, val_dir, train_list, val_list, bpd_dir, shorter_si
       batch_size (int) : training batch size.
       num_workers (int) : number of workers to parallelise data loading operations.
       ignore_label (int) : label to pad segmentation masks with
+
     Returns:
-      train_loader, val_loader
+      train_loader, val loader
+
     """
     # Torch libraries
     from torchvision import transforms
@@ -141,7 +326,7 @@ def create_loaders(train_dir, val_dir, train_list, val_list, bpd_dir, shorter_si
         ToTensor,
         Normalise,
     )
-    
+
     ## Transformations during training ##
     composed_trn = transforms.Compose(
         [
@@ -158,7 +343,7 @@ def create_loaders(train_dir, val_dir, train_list, val_list, bpd_dir, shorter_si
     trainset = Dataset(
         data_file=train_list,
         data_dir=train_dir,
-        bpd_dir=bpd_dir, #***
+        bpd_dir=bpd_dir,
         transform_trn=composed_trn,
         transform_val=composed_val,
     )
@@ -166,7 +351,7 @@ def create_loaders(train_dir, val_dir, train_list, val_list, bpd_dir, shorter_si
     valset = Dataset(
         data_file=val_list,
         data_dir=val_dir,
-        bpd_dir=bpd_dir, #***
+        bpd_dir=bpd_dir,
         transform_trn=None,
         transform_val=composed_val,
     )
@@ -205,14 +390,6 @@ def create_optimisers(
         optim_dec = torch.optim.Adam(
             param_dec, lr=lr_dec, weight_decay=wd_dec, eps=1e-3
         )
-    elif optim_dec == "ada":
-        optim_dec = torch.optim.Adagrad(
-            param_dec, lr=lr_dec, weight_decay=wd_dec, eps=1e-3
-        )
-    elif optim_dec == "rms":
-        optim_dec = torch.optim.RMSprop(
-            param_dec, lr=lr_dec, weight_decay=wd_dec, momentum=mom_dec, eps=1e-3
-        )
     return optim_enc, optim_dec
 
 
@@ -225,12 +402,15 @@ def load_ckpt(ckpt_path, ckpt_dict, mode):
         return ckpt.get('best_val', 0)
     if mode == 'opt':
         return ckpt['opt_enc'], ckpt['opt_dec']
+    if mode == 'sched':
+        return ckpt['scheduler']
 
 
 def train_segmenter(
     segmenter, train_loader, optim_enc, optim_dec, epoch, segm_crit, freeze_bn
 ):
     """Training segmenter
+
     Args:
       segmenter (nn.Module) : segmentation network
       train_loader (DataLoader) : training data iterator
@@ -239,64 +419,32 @@ def train_segmenter(
       epoch (int) : current epoch
       segm_crit (nn.Loss) : segmentation criterion
       freeze_bn (bool) : whether to keep BN params intact
+
     """
-    # train_loader.dataset.set_stage("train")
+    train_loader.dataset.set_stage("train")
     segmenter.train()
     if freeze_bn:
         for m in segmenter.modules():
             if isinstance(m, nn.BatchNorm2d):
                 m.eval()
     batch_time = AverageMeter()
-    torch.autograd.set_detect_anomaly(True)
     losses = AverageMeter()
-    # for param_group in optim_enc.param_groups:
-    #     lr_enc = param_group['lr']
-    # for param_group in optim_dec.param_groups:
-    #     lr_dec = param_group['lr']
-    los = []
-
     for i, sample in enumerate(train_loader):
-
-        
-        # for key in segmenter.state_dict().keys():
-        #   if torch.isnan((segmenter.state_dict()[key]).sum()) or torch.isinf((segmenter.state_dict()[key]).sum()):
-        #     print('parameter found')
-        #     print(key)
-        
-        lr_encoder = optim_enc.param_groups[0]['lr']
-        lr_decoder = optim_dec.param_groups[0]['lr']
         start = time.time()
-        input = sample['image']
-        bpd = sample['bpd'].unsqueeze(1)
-        # if torch.isnan(bpd.sum()):
-        #   print(sample['name'])
-        #   print('*********** DATALOADER IS CREATING NAN ************')
-          
+        input = sample["image"].cuda()
+        bpd = sample["bpd"].unsqueeze(1).cuda() #**
         target = sample["mask"].cuda()
         input_var = torch.autograd.Variable(input).float()
         bpd_var = torch.autograd.Variable(bpd).float()
-        # if torch.isnan(bpd_var.sum()):
-        #   print(sample['name'])
-        #   print('*********** AUTOGRAD IS CREATING NAN ************')
-        #   HI
-        # continue
-        # print('\nit doesnt continue\n')
-
         target_var = torch.autograd.Variable(target).long()
         # Compute output
         output = segmenter(input_var, bpd_var)
-        # output, bpd, x1 = segmenter(input_var, bpd_var)
-        # print('x1 ', x1.min().item(), x1.max().item())
-        # print('bpd', bpd.min().item(), bpd.max().item())
-        # print('out', output.min().item(), output.max().item())
-        # print('***********************************************')
         output = nn.functional.interpolate(
             output, size=target_var.size()[1:], mode="bilinear", align_corners=False
         )
         soft_output = nn.LogSoftmax()(output)
         # Compute loss and backpropagate
         loss = segm_crit(soft_output, target_var)
-        torch.nn.utils.clip_grad_norm_(segmenter.parameters(), 0.25)
         optim_enc.zero_grad()
         optim_dec.zero_grad()
         loss.backward()
@@ -304,28 +452,25 @@ def train_segmenter(
         optim_dec.step()
         losses.update(loss.item())
         batch_time.update(time.time() - start)
-        los.append(loss.item())
-
         if i % args.print_every == 0:
             logger.info(
                 " Train epoch: {} [{}/{}]\t"
                 "Avg. Loss: {:.3f}\t"
-                "LR_enc: {:.5f}\t"
-                "LR_dec: {:.5f}\t"
                 "Avg. Time: {:.3f}".format(
-                    epoch, i, len(train_loader), losses.avg, lr_encoder, lr_decoder, batch_time.avg
+                    epoch, i, len(train_loader), losses.avg, batch_time.avg
                 )
             )
-    return los
 
 
 def validate(segmenter, val_loader, epoch, num_classes=-1):
     """Validate segmenter
+
     Args:
       segmenter (nn.Module) : segmentation network
       val_loader (DataLoader) : training data iterator
       epoch (int) : current epoch
       num_classes (int) : number of classes to consider
+
     Returns:
       Mean IoU (float)
     """
@@ -334,9 +479,8 @@ def validate(segmenter, val_loader, epoch, num_classes=-1):
     cm = np.zeros((num_classes, num_classes), dtype=int)
     with torch.no_grad():
         for i, sample in enumerate(val_loader):
-            # start = time.time()
-            input = sample['image']
-            bpd = sample['bpd'][:, None, :, :]
+            input = sample["image"]
+            bpd = sample["bpd"].unsqueeze(1)
             target = sample["mask"]
             input_var = torch.autograd.Variable(input).float().cuda()
             bpd_var = torch.autograd.Variable(bpd).float().cuda()
@@ -388,17 +532,19 @@ def main():
     random.seed(args.random_seed)
     ## Generate Segmenter ##
     segmenter = nn.DataParallel(
-        create_segmenter(args.enc, args.enc_pretrained, args.num_classes[0])).cuda()
+        create_segmenter(args.enc, args.enc_pretrained, args.num_classes[0])
+    ).cuda()
     logger.info(
         " Loaded Segmenter {}, ImageNet-Pre-Trained={}, #PARAMS={:3.2f}M".format(
-            args.enc, args.enc_pretrained, compute_params(segmenter) / 1e6))
-
+            args.enc, args.enc_pretrained, compute_params(segmenter) / 1e6
+        )
+    )
+    
     # Restore if any
     best_val, epoch_start = 0, 0
     if args.resume:
         saved_model = args.resume + 'model.pth.tar'
         if os.path.isfile(saved_model):
-            print(372)
             segmenter.load_state_dict(torch.load(saved_model, map_location='cpu'))
             epoch_start = load_ckpt(args.resume, None, mode='numbers')            
             best_val = load_ckpt(args.resume, None, mode='best')   
@@ -406,29 +552,41 @@ def main():
         else:
             print("=> no checkpoint found at '{}'".format(args.resume))
             return
-    epoch_current = epoch_start
-    
     ## Criterion ##
     segm_crit = nn.NLLLoss2d(ignore_index=args.ignore_label).cuda()
 
     ## Saver ##
-    saver = Saver(args=vars(args), ckpt_dir=args.ckpt_path,
-        best_val=best_val, condition=lambda x, y: x > y)  # keep checkpoint with the best validation score
+    saver = Saver(
+        args=vars(args),
+        ckpt_dir=args.ckpt_path,
+        best_val=best_val,
+        condition=lambda x, y: x > y,
+    )  # keep checkpoint with the best validation score
 
     logger.info(" Training Process Starts")
-    losses = []
-
     for task_idx in range(args.num_stages):
         start = time.time()
         torch.cuda.empty_cache()
         ## Create dataloaders ##
-        train_loader, val_loader = create_loaders(args.train_dir, args.val_dir,
-            args.train_list[task_idx], args.val_list[task_idx], args.bpd_dir, #***
-            args.shorter_side[task_idx], args.crop_size[task_idx], 
-            args.low_scale[task_idx], args.high_scale[task_idx], args.normalise_params, 
-            args.batch_size[task_idx], args.num_workers, args.ignore_label)
+        train_loader, val_loader = create_loaders(
+            args.train_dir,
+            args.val_dir,
+            args.bpd_dir,
+            args.train_list[task_idx],
+            args.val_list[task_idx],
+            args.shorter_side[task_idx],
+            args.crop_size[task_idx],
+            args.low_scale[task_idx],
+            args.high_scale[task_idx],
+            args.normalise_params,
+            args.batch_size[task_idx],
+            args.num_workers,
+            args.ignore_label,
+        )
         if args.evaluate:
-            return validate(segmenter, val_loader, 0, num_classes=args.num_classes[task_idx])
+            return validate(
+                segmenter, val_loader, 0, num_classes=args.num_classes[task_idx]
+            )
 
         logger.info(" Training Stage {}".format(str(task_idx)))
         ## Optimisers ##
@@ -441,37 +599,55 @@ def main():
             else:
                 dec_params.append(v)
                 # logger.info(" Dec. parameter: {}".format(k))
-        optim_enc, optim_dec = create_optimisers(args.lr_enc[task_idx], 
-            args.lr_dec[task_idx], args.mom_enc[task_idx], args.mom_dec[task_idx],
-            args.wd_enc[task_idx], args.wd_dec[task_idx], enc_params,
-            dec_params, args.optim_dec)
+        optim_enc, optim_dec = create_optimisers(
+            args.lr_enc[task_idx],
+            args.lr_dec[task_idx],
+            args.mom_enc[task_idx],
+            args.mom_dec[task_idx],
+            args.wd_enc[task_idx],
+            args.wd_dec[task_idx],
+            enc_params,
+            dec_params,
+            args.optim_dec,
+        )
 
-        # if args.resume:
-        #     enc_opt, dec_opt = load_ckpt(args.resume, None, mode='opt')
-        #     optim_enc.load_state_dict(enc_opt)
-        #     optim_dec.load_state_dict(dec_opt)
-        #     args.resume = False
-        #     print('optimizer loaded')
-                  
+        if args.resume:
+            enc_opt, dec_opt = load_ckpt(args.resume, None, mode='opt')
+            # sched = load_ckpt(args.resume, None, mode='sched')
+            optim_enc.load_state_dict(enc_opt)
+            optim_dec.load_state_dict(dec_opt) #()
+            # scheduler.load_state_dict(sched)
+            args.resume = False
+            print('optimizer loaded')
+
         for epoch in range(args.num_segm_epochs[task_idx]):
-            # print('epoch_start', epoch_start, 'epoch_current', epoch_current)            
-            l = train_segmenter(segmenter, train_loader, optim_enc, optim_dec,
-                epoch_start, segm_crit, args.freeze_bn[task_idx])
-            losses += l
-
-            with open('./loss.txt', 'w') as f:
-                for i in losses:
-                    f.write(str(i) + '\n')
-                
+            train_segmenter(
+                segmenter,
+                train_loader,
+                optim_enc,
+                optim_dec,
+                epoch_start,
+                segm_crit,
+                args.freeze_bn[task_idx],
+            )
             if (epoch + 1) % (args.val_every[task_idx]) == 0:
-                miou = validate(segmenter, val_loader, epoch_start, args.num_classes[task_idx])
-                saver.save(miou, {'segmenter' : segmenter.state_dict()}, {'epoch_start' : epoch_start},
-                                 {'opt_enc': optim_enc.state_dict(), 'opt_dec':optim_dec.state_dict()})
-                # iou.append(miou)                    
-            
+                miou = validate(
+                    segmenter, val_loader, epoch_start, args.num_classes[task_idx]
+                )
+                saver.save(
+                    miou,
+                    {"segmenter": segmenter.state_dict(), "epoch_start": epoch_start},
+                    logger,
+                )
             epoch_start += 1
-        logger.info("Stage {} finished, time spent {:.3f}min".format(task_idx, (time.time() - start) / 60.0))
-    logger.info("All stages are now finished. Best Val is {:.3f}".format(saver.best_val))
+        logger.info(
+            "Stage {} finished, time spent {:.3f}min".format(
+                task_idx, (time.time() - start) / 60.0
+            )
+        )
+    logger.info(
+        "All stages are now finished. Best Val is {:.3f}".format(saver.best_val)
+    )
 
 
 if __name__ == "__main__":
