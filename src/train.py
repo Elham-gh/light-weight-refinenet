@@ -410,7 +410,6 @@ def train_segmenter(
     segmenter, train_loader, optim_enc, optim_dec, epoch, segm_crit, freeze_bn
 ):
     """Training segmenter
-
     Args:
       segmenter (nn.Module) : segmentation network
       train_loader (DataLoader) : training data iterator
@@ -419,7 +418,6 @@ def train_segmenter(
       epoch (int) : current epoch
       segm_crit (nn.Loss) : segmentation criterion
       freeze_bn (bool) : whether to keep BN params intact
-
     """
     train_loader.dataset.set_stage("train")
     segmenter.train()
@@ -429,25 +427,29 @@ def train_segmenter(
                 m.eval()
     batch_time = AverageMeter()
     losses = AverageMeter()
+    los = []
     for i, sample in enumerate(train_loader):
+        lr_enc = optim_enc.state_dict()['param_groups'][0]['lr']
+        lr_dec = optim_dec.state_dict()['param_groups'][0]['lr']
         start = time.time()
-        input = sample["image"].cuda()
-        bpd = sample["bpd"].unsqueeze(1).cuda() #**
+        image = sample['image']
+        bpd = sample['bpd'].unsqueeze(1)
+        input = torch.cat((image, bpd), 1)
         target = sample["mask"].cuda()
         input_var = torch.autograd.Variable(input).float()
-        bpd_var = torch.autograd.Variable(bpd).float()
         target_var = torch.autograd.Variable(target).long()
         # Compute output
-        output = segmenter(input_var, bpd_var)
+        output = segmenter(input_var)
         output = nn.functional.interpolate(
             output, size=target_var.size()[1:], mode="bilinear", align_corners=False
         )
         soft_output = nn.LogSoftmax()(output)
         # Compute loss and backpropagate
         loss = segm_crit(soft_output, target_var)
+        los.append(loss.item())
         optim_enc.zero_grad()
         optim_dec.zero_grad()
-        loss.backward()
+        loss.backward(retain_graph=True)
         optim_enc.step()
         optim_dec.step()
         losses.update(loss.item())
@@ -456,10 +458,13 @@ def train_segmenter(
             logger.info(
                 " Train epoch: {} [{}/{}]\t"
                 "Avg. Loss: {:.3f}\t"
+                "lr_enc: {:.6f}\t"
+                "lr_dec: {:.6f}\t"
                 "Avg. Time: {:.3f}".format(
-                    epoch, i, len(train_loader), losses.avg, batch_time.avg
+                    epoch, i, len(train_loader), losses.avg, lr_enc, lr_dec, batch_time.avg
                 )
             )
+    return los
 
 
 def validate(segmenter, val_loader, epoch, num_classes=-1):
@@ -605,6 +610,8 @@ def main():
             l = train_segmenter(segmenter, train_loader, optim_enc, optim_dec,
                 epoch_start, segm_crit, args.freeze_bn[task_idx])
             
+            print(losses)
+            print(l)
             losses += l
 
             with open('./loss.txt', 'w') as f:
