@@ -241,7 +241,6 @@ def train_segmenter(
                 m.eval()
     batch_time = AverageMeter()
     losses = AverageMeter()
-    # batch_loss = 0
     los = []
     for i, sample in enumerate(train_loader):
         lr_enc = optim_enc.state_dict()['param_groups'][0]['lr']
@@ -261,11 +260,6 @@ def train_segmenter(
         soft_output = nn.LogSoftmax()(output)
         # Compute loss and backpropagate
         loss = segm_crit(soft_output, target_var)
-        # batch_loss += loss
-        # print(type(batch_loss))
-        # print(batch_loss)
-        # if (i + 1) % args.batch_mean == 0:
-        #     loss = batch_loss / args.batch_mean
         los.append(loss.item())
         optim_enc.zero_grad()
         optim_dec.zero_grad()
@@ -363,7 +357,6 @@ def main():
 
     # Restore if any
     best_val, epoch_start = 0, 0
-    
     if args.resume:
         saved_model = args.resume + 'model.pth.tar'
         if os.path.isfile(saved_model):
@@ -441,8 +434,7 @@ def main():
                 saver.save(miou, {'segmenter' : segmenter.state_dict(), 'epoch_start' : epoch_current}, {'epoch_start' : epoch_current},
                                  {'opt_enc': optim_enc.state_dict(), 'opt_dec':optim_dec.state_dict})
                 mious.append(miou)
-                
-                with open(args.ckpt_path + 'mious.txt', 'w') as f:
+                with open(CKPT_PATH + 'mious.txt', 'w') as f:
                     for i in mious:
                         f.write(str(i) + '\n')
                 
