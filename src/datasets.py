@@ -48,7 +48,7 @@ class Pad(object):
         self.size = size
         self.img_val = img_val
         self.msk_val = msk_val
-        self.bpd_val = np.mean(img_val)
+        self.bpd_val = 0
 
     def __call__(self, sample):
         image, mask, bpd = sample["image"], sample["mask"], sample["bpd"]
@@ -163,7 +163,7 @@ class Normalise(object):
         image = sample["image"]
         bpd = sample["bpd"]
         image = (self.scale * image - self.mean) / self.std
-        bpd = ((bpd - np.min(bpd)) / (np.max(bpd) - np.min(bpd))) * 255
+        bpd = ((bpd - np.min(bpd)) / (np.max(bpd) - np.min(bpd))) 
         # bpd = (self.scale * bpd - self.mean.mean(axis=2)) / self.std.mean(axis=2)
         return {
             "image": image, 
