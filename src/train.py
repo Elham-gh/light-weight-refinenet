@@ -432,14 +432,14 @@ def train_segmenter(
         lr_enc = optim_enc.state_dict()['param_groups'][0]['lr']
         lr_dec = optim_dec.state_dict()['param_groups'][0]['lr']
         start = time.time()
-        image = sample['image']
+        input = sample['image']
         bpd = sample['bpd'].unsqueeze(1)
-        input = torch.cat((image, bpd), 1)
         target = sample["mask"].cuda()
         input_var = torch.autograd.Variable(input).float()
+        bpd_var = torch.autograd.Variable(bpd).float()
         target_var = torch.autograd.Variable(target).long()
         # Compute output
-        output = segmenter(input_var)
+        output = segmenter(input_var, bpd_var)
         output = nn.functional.interpolate(
             output, size=target_var.size()[1:], mode="bilinear", align_corners=False
         )
