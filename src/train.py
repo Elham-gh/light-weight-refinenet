@@ -319,10 +319,10 @@ def create_loaders(
     # Custom libraries
     from datasets import NYUDataset as Dataset
     from datasets import (
-        # Pad,
+        Pad,
         RandomCrop,
         RandomMirror,
-        # ResizeShorterScale,
+        ResizeShorterScale,
         ToTensor,
         Normalise,
     )
@@ -330,8 +330,8 @@ def create_loaders(
     ## Transformations during training ##
     composed_trn = transforms.Compose(
         [
-            # ResizeShorterScale(shorter_side, low_scale, high_scale),
-            # Pad(crop_size, [123.675, 116.28, 103.53], ignore_label),
+            ResizeShorterScale(shorter_side, low_scale, high_scale),
+            Pad(crop_size, [123.675, 116.28, 103.53], ignore_label),
             RandomMirror(),
             RandomCrop(crop_size),
             Normalise(*normalise_params),
@@ -437,6 +437,10 @@ def train_segmenter(
         target = sample["mask"].cuda()
         input_var = torch.autograd.Variable(input).float()
         bpd_var = torch.autograd.Variable(bpd).float()
+        if torch.isnan(bpd.sum()):
+            with open('./nan.txt', 'w') as f:
+                f.write(str(sample['name']))
+                continue
         target_var = torch.autograd.Variable(target).long()
         # Compute output
         output = segmenter(input_var, bpd_var)
