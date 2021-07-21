@@ -31,13 +31,13 @@ FREEZE_BN = [True] * 1
 NUM_SEGM_EPOCHS = [1000] * 1
 PRINT_EVERY = 10
 RANDOM_SEED = 42
-CKPT_PATH = '/content/drive/MyDrive/Super-BPD/LWR/ckpt_att_1C/'
+CKPT_PATH = '/content/drive/MyDrive/Super-BPD/LWR/ckpt_att_small/'
 VAL_EVERY = [10] * 1  # how often to record validation scores
 RESUME = ''#'/content/drive/MyDrive/Super-BPD/LWR/ckpt_att_batch/'
 
 # OPTIMISERS' PARAMETERS
-LR_ENC = [1e-9]  # TO FREEZE, PUT 0
-LR_DEC = [1e-8]
+LR_ENC = [1e-8]  # TO FREEZE, PUT 0
+LR_DEC = [1e-7]
 
 MOM_ENC = [0] * 1  # TO FREEZE, PUT 0
 MOM_DEC = [0] * 1
