@@ -302,12 +302,12 @@ def validate(segmenter, val_loader, epoch, num_classes=-1):
         for i, sample in enumerate(val_loader):
             # start = time.time()
             image = sample['image']
-            bpd = sample['bpd'][:, None, :, :]
-            input = torch.cat((image, bpd), 1)
+            bpd = sample['bpd'].unsqueeze(1)
             target = sample["mask"]
             input_var = torch.autograd.Variable(input).float().cuda()
+            bpd_var = torch.autograd.Variable(bpd).float().cuda()
             # Compute output
-            output = segmenter(input_var)
+            output = segmenter(input_var, bpd_var)
             output = (
                 cv2.resize(
                     output[0, :num_classes].data.cpu().numpy().transpose(1, 2, 0),
