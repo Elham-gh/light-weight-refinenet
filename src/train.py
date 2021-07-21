@@ -253,10 +253,13 @@ def train_segmenter(
     for i, sample in enumerate(train_loader):
         start = time.time()
         image = sample['image']
-        bpd = sample['bpd'][:, None, :, :]
-        depth = sample['depth'][:, None, :, :]
+        bpd = sample['bpd'].unsqueeze(1)
+        depth = sample['depth'].unsqueeze(1)
         input = torch.cat((image, depth), 1)
         target = sample["mask"].cuda()
+        # print(image.max(), image.min(), image.mean())
+        # print(bpd.max(), bpd.min(), bpd.mean())
+        # print(depth.max(), depth.min(), depth.mean())
         input_var = torch.autograd.Variable(input).float()
         target_var = torch.autograd.Variable(target).long()
         # Compute output
@@ -307,8 +310,8 @@ def validate(segmenter, val_loader, epoch, num_classes=-1):
         for i, sample in enumerate(val_loader):
             # start = time.time()
             image = sample['image']
-            bpd = sample['bpd'][:, None, :, :]
-            depth = sample['depth'][:, None, :, :]
+            bpd = sample['bpd'].unsqueeze(1)
+            depth = sample['depth'].unsqueeze(1)
             input = torch.cat((image, depth), 1)
             target = sample["mask"]
             input_var = torch.autograd.Variable(input).float().cuda()
@@ -411,10 +414,10 @@ def main():
         for k, v in segmenter.named_parameters():
             if bool(re.match(".*conv1.*|.*bn1.*|.*layer.*", k)):
                 enc_params.append(v)
-                logger.info(" Enc. parameter: {}".format(k))
+                # logger.info(" Enc. parameter: {}".format(k))
             else:
                 dec_params.append(v)
-                logger.info(" Dec. parameter: {}".format(k))
+                # logger.info(" Dec. parameter: {}".format(k))
         optim_enc, optim_dec = create_optimisers(args.lr_enc[task_idx], 
             args.lr_dec[task_idx], args.mom_enc[task_idx], args.mom_dec[task_idx],
             args.wd_enc[task_idx], args.wd_dec[task_idx], enc_params,
