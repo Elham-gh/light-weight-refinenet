@@ -135,10 +135,10 @@ def create_loaders(train_dir, val_dir, train_list, val_list, bpd_dir, shorter_si
     # Custom libraries
     from datasets import NYUDataset as Dataset
     from datasets import (
-        # Pad,
+        Pad,
         RandomCrop,
         RandomMirror,
-        # ResizeShorterScale,
+        ResizeShorterScale,
         ToTensor,
         Normalise,
     )
@@ -146,8 +146,8 @@ def create_loaders(train_dir, val_dir, train_list, val_list, bpd_dir, shorter_si
     ## Transformations during training ##
     composed_trn = transforms.Compose(
         [
-            # ResizeShorterScale(shorter_side, low_scale, high_scale),
-            # Pad(crop_size, [123.675, 116.28, 103.53], ignore_label),
+            ResizeShorterScale(shorter_side, low_scale, high_scale),
+            Pad(crop_size, [123.675, 116.28, 103.53], ignore_label),
             RandomMirror(),
             RandomCrop(crop_size),
             Normalise(*normalise_params),
@@ -217,7 +217,7 @@ def load_ckpt(ckpt_path, ckpt_dict, mode):
     if mode == 'best':
         return ckpt.get('best_val', 0)
     if mode == 'opt':
-        return ckpt['opt_enc'], ckpt['opt_dec']
+        return ckpt['opt_enc'], ckpt['opt_dec'], ckpt['sched']
 
 
 def train_segmenter(
@@ -246,14 +246,18 @@ def train_segmenter(
         lr_enc = optim_enc.state_dict()['param_groups'][0]['lr']
         lr_dec = optim_dec.state_dict()['param_groups'][0]['lr']
         start = time.time()
-        image = sample['image']
+        input = sample['image']
         bpd = sample['bpd'].unsqueeze(1)
-        input = torch.cat((image, bpd), 1)
+        if torch.isnan(bpd.sum()):
+          with open('./nan.txt', 'w') as f:
+            f.write(str(sample['name']))
+            continue
         target = sample["mask"].cuda()
         input_var = torch.autograd.Variable(input).float()
+        bpd_var = torch.autograd.Variable(bpd).float()
         target_var = torch.autograd.Variable(target).long()
         # Compute output
-        output = segmenter(input_var)
+        output = segmenter(input_var, bpd_var)
         output = nn.functional.interpolate(
             output, size=target_var.size()[1:], mode="bilinear", align_corners=False
         )
@@ -405,17 +409,19 @@ def main():
                 dec_params.append(v)
                 # logger.info(" Dec. parameter: {}".format(k))
         optim_enc, optim_dec = create_optimisers(args.lr_enc[task_idx], 
-            args.lr_dec[task_idx], args.mom_enc[task_idx], args.mom_dec[task_idx],
-            args.wd_enc[task_idx], args.wd_dec[task_idx], enc_params,
-            dec_params, args.optim_dec)
+            args.lr_dec[task_idx], args.mom_enc[task_idx], 
+            args.mom_dec[task_idx], args.wd_enc[task_idx], args.wd_dec[task_idx], 
+            enc_params, dec_params, args.optim_dec)
 
-        # scheduler = torch.optim.lr_scheduler.OneCycleLR(optim_dec, max_lr=0.005, 
-        #     total_steps=300, steps_per_epoch=len(train_loader), verbose=True)
+        scheduler = torch.optim.lr_scheduler.OneCycleLR(optim_dec, 
+            max_lr=0.001, epochs=200, steps_per_epoch=len(train_loader), 
+            div_factor=1, verbose=True)
 
         # if args.resume:
-        #     enc_opt, dec_opt = load_ckpt(args.resume, None, mode='opt')
+        #     enc_opt, dec_opt, sched = load_ckpt(args.resume, None, mode='opt')
         #     optim_enc.load_state_dict(enc_opt)
         #     optim_dec.load_state_dict(dec_opt())
+        #     scheduler.load_state_dict(sched)
         #     args.resume = False
         #     print('optimizer loaded')
 
@@ -430,16 +436,26 @@ def main():
                     f.write(str(i) + '\n')
                 
             if (epoch + 1) % (args.val_every[task_idx]) == 0:
-                miou = validate(segmenter, val_loader, epoch_start, args.num_classes[task_idx])
-                saver.save(miou, {'segmenter' : segmenter.state_dict(), 'epoch_start' : epoch_current}, {'epoch_start' : epoch_current},
-                                 {'opt_enc': optim_enc.state_dict(), 'opt_dec':optim_dec.state_dict})
+                miou = validate(segmenter, val_loader, epoch_start, 
+                                args.num_classes[task_idx])
+                saver.save(
+                        miou, {'segmenter' : segmenter.state_dict(), 
+                        'epoch_start' : epoch_current}, 
+                        {'epoch_start' : epoch_current},
+                        {'opt_enc': optim_enc.state_dict(), 
+                        'opt_dec':optim_dec.state_dict, 
+                        'sched': scheduler.state_dict()}
+                        )
+
                 mious.append(miou)
+
                 with open(CKPT_PATH + 'mious.txt', 'w') as f:
                     for i in mious:
                         f.write(str(i) + '\n')
                 
-            # scheduler.step()
+            scheduler.step()
             epoch_start += 1
+
         logger.info("Stage {} finished, time spent {:.3f}min".format(task_idx, (time.time() - start) / 60.0))
     logger.info("All stages are now finished. Best Val is {:.3f}".format(saver.best_val))
 
