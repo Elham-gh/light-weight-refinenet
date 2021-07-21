@@ -36,8 +36,8 @@ VAL_EVERY = [10] * 1  # how often to record validation scores
 RESUME = ''#'/content/drive/MyDrive/Super-BPD/LWR/ckpt_att_batch/'
 
 # OPTIMISERS' PARAMETERS
-LR_ENC = [1e-8]  # TO FREEZE, PUT 0
-LR_DEC = [1e-7]
+LR_ENC = [1e-7]  # TO FREEZE, PUT 0
+LR_DEC = [1e-6]
 
 MOM_ENC = [0] * 1  # TO FREEZE, PUT 0
 MOM_DEC = [0] * 1
