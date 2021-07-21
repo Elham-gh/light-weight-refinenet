@@ -177,11 +177,21 @@ class Normalise(object):
 
     def __call__(self, sample):
         image, bpd, depth = sample["image"], sample["bpd"], sample["depth"]
+
         image = (self.scale * image - self.mean) / self.std
-        bpd = ((bpd - np.min(bpd)) / (np.max(bpd) - np.min(bpd))) * 255
-        bpd = (self.scale * bpd - self.mean.mean(axis=2)) / self.std.mean(axis=2)
-        depth = ((depth - np.min(depth)) / (np.max(depth) - np.min(depth))) * 255
-        depth = (self.scale * depth - self.mean.mean(axis=2)) / self.std.mean(axis=2)
+        
+        bpd = ((bpd - bpd.min()) / (bpd.max() - bpd.min())) * 255
+        bpdlist = []
+        for i in range(3):
+            bpdlist.append((self.scale * bpd - self.mean[0][0][i]) / self.std[0][0][i])
+        bpd = np.array(bpdlist).mean(axis=0)
+        
+        depth = ((depth - depth.min()) / (depth.max() - depth.min())) * 255
+        depths = []
+        for i in range(3):
+            depths.append((self.scale * depth - self.mean[0][0][i]) / self.std[0][0][i])
+        depth = np.array(depths).mean(axis=0)
+
         return {
             "image": image, "mask": sample["mask"], "name": sample["name"],
             "bpd": bpd, "depth": depth
@@ -248,6 +258,9 @@ class NYUDataset(Dataset):
         mask = np.array(Image.open(msk_name))
         depth = np.array(Image.open(dpt_name))
         bpd = self.bpds[bpd_name]
+        print(image.shape)
+        print(depth.shape)
+        hello
         
         if img_name != msk_name:
             assert len(mask.shape) == 2, "Masks must be encoded without colourmap"
