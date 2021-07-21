@@ -64,19 +64,21 @@ class Saver():
         return self.condition(new_val, self.best_val)
 
     def save(self, new_val, dict_to_save, numbers, optimizers):
-        """Save new checkpoint"""
-        '''Save optimizer state'''
-        torch.save(optimizers, '{}/opt.pth.tar'.format(self.ckpt_dir))
-        '''save model state'''
-        model = dict_to_save['segmenter']
-        torch.save(model, '{}/model.pth.tar'.format(self.ckpt_dir))
-        '''save epoch number'''
-        torch.save(numbers, '{}/numbers.pth.tar'.format(self.ckpt_dir))
         
         self._counter += 1
         if self._do_save(new_val):
-            # print(' New best value {:.4f}, was {:.4f}'.format(new_val, self.best_val), flush=True)
+            """Save new checkpoint"""
+            print(' New best value {:.4f}, was {:.4f}'.format(new_val, self.best_val), flush=True)
             self.best_val = new_val
             best = dict()
             best['best_val'] = new_val
             torch.save(best, '{}/best.pth.tar'.format(self.ckpt_dir))
+
+            '''Save optimizer state'''
+            torch.save(optimizers, '{}/opt.pth.tar'.format(self.ckpt_dir))
+            '''save model state'''
+            model = dict_to_save['segmenter']
+            torch.save(model, '{}/model.pth.tar'.format(self.ckpt_dir))
+            '''save epoch number'''
+            torch.save(numbers, '{}/numbers.pth.tar'.format(self.ckpt_dir))
+            
