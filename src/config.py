@@ -15,7 +15,7 @@ NORMALISE_PARAMS = [
 ]  # STD
 BATCH_SIZE = [6] * 12
 NUM_WORKERS = 16
-NUM_CLASSES = [40] * 12
+NUM_CLASSES = [40] * 3
 LOW_SCALE = [0.5] * 12
 HIGH_SCALE = [2.0] * 12
 IGNORE_LABEL = 255
@@ -27,11 +27,11 @@ ENC_PRETRAINED = True  # pre-trained on ImageNet or randomly initialised
 # GENERAL
 EVALUATE = False
 FREEZE_BN = [True] * 12
-NUM_SEGM_EPOCHS = [30] * 12
+NUM_SEGM_EPOCHS = [100] * 12
 PRINT_EVERY = 10
 RANDOM_SEED = 42
-CKPT_PATH = "/content/drive/MyDrive/Super-BPD/LWR/ckpt_cat_new/"
-RESUME = CKPT_PATH + "353_19/Copy of "
+CKPT_PATH = "/content/drive/MyDrive/Super-BPD/LWR/ckpt_multimodalcat/"
+RESUME = '' #CKPT_PATH + "353_19/Copy of "
 VAL_EVERY = [10] * 12  # how often to record validation scores
 
 # OPTIMISERS' PARAMETERS
