@@ -54,7 +54,7 @@ class Pad(object):
         self.size = size
         self.img_val = img_val
         self.msk_val = msk_val
-        self.bpd_val = np.mean(img_val)
+        self.bpd_val = 0
 
     def __call__(self, sample):
         image, mask, bpd = sample["image"], sample["mask"], sample["bpd"]
