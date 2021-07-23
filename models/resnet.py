@@ -27,6 +27,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
 
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -189,6 +190,14 @@ class ResNetLW(nn.Module):
 
     def forward(self, x):
         # print(191, x.size())
+        depth = x[:, -1, :, :].unsqueeze(1)
+        x = x[:, :-1, :, :]
+
+        depth = F.normalize(depth, p=2.0, dim=1, eps=1e-6, out=None)
+        x = F.normalize(x, p=2.0, dim=1, eps=1e-6, out=None)
+
+        x = torch.cat((x, depth), axis=1)
+        
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
