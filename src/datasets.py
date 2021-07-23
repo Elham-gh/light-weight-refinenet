@@ -57,7 +57,7 @@ class Pad(object):
         self.img_val = img_val
         self.msk_val = msk_val
         self.bpd_val = np.mean(img_val)
-        self.dpt_val = np.mean(img_val)
+        self.dpt_val = 0
 
     def __call__(self, sample):
         image, mask, bpd, depth = sample["image"], sample["mask"], sample["bpd"], sample["depth"]
@@ -256,11 +256,9 @@ class NYUDataset(Dataset):
 
         image = read_image(img_name)
         mask = np.array(Image.open(msk_name))
-        depth = np.array(Image.open(dpt_name))
+        depth = np.array(Image.open(dpt_name))[12:, 15:]
         bpd = self.bpds[bpd_name]
-        print(image.shape)
-        print(depth.shape)
-        hello
+        
         
         if img_name != msk_name:
             assert len(mask.shape) == 2, "Masks must be encoded without colourmap"
