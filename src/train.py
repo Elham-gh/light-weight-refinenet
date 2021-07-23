@@ -260,6 +260,7 @@ def train_segmenter(
         # print(image.max(), image.min(), image.mean())
         # print(bpd.max(), bpd.min(), bpd.mean())
         # print(depth.max(), depth.min(), depth.mean())
+        # fajf
         input_var = torch.autograd.Variable(input).float()
         target_var = torch.autograd.Variable(target).long()
         # Compute output
