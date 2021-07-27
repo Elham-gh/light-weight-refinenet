@@ -1,54 +1,3 @@
-"""RefineNet-LightWeight
-
-RefineNet-LigthWeight PyTorch for non-commercial purposes
-
-Copyright (c) 2018, Vladimir Nekrasov (vladimir.nekrasov@adelaide.edu.au)
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-* Redistributions of source code must retain the above copyright notice, this
-  list of conditions and the following disclaimer.
-
-* Redistributions in binary form must reproduce the above copyright notice,
-  this list of conditions and the following disclaimer in the documentation
-  and/or other materials provided with the distribution.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-"""
-
-# general libs
-import argparse
-import logging
-import os
-import random
-import re
-import time
-
-# misc
-import cv2
-import numpy as np
-
-# pytorch libs
-import torch
-import torch.nn as nn
-
-# custom libs
-from config import *
-from miou_utils import compute_iu, fast_cm
-from util import *
-
-
 def get_arguments():
     """Parse all the arguments provided from the CLI.
 
@@ -434,16 +383,23 @@ def train_segmenter(
         start = time.time()
         input = sample['image']
         bpd = sample['bpd'].unsqueeze(1)
+        depth = sample['depth'].unsqueeze(1)
         target = sample["mask"].cuda()
         input_var = torch.autograd.Variable(input).float()
         bpd_var = torch.autograd.Variable(bpd).float()
+        depth_var = torch.autograd.Variable(depth).float()
+
+        # print(input_var.max(), input_var.min(), input_var.mean())
+        # print(bpd_var.max(), bpd_var.min(), bpd_var.mean())
+        # print(depth_var.max(), depth_var.min(), depth_var.mean())
+        # afsd
         if torch.isnan(bpd.sum()):
             with open('./nan.txt', 'w') as f:
                 f.write(str(sample['name']))
                 continue
         target_var = torch.autograd.Variable(target).long()
         # Compute output
-        output = segmenter(input_var, bpd_var)
+        output = segmenter(input_var, bpd_var, depth_var)
         output = nn.functional.interpolate(
             output, size=target_var.size()[1:], mode="bilinear", align_corners=False
         )
@@ -490,11 +446,13 @@ def validate(segmenter, val_loader, epoch, num_classes=-1):
         for i, sample in enumerate(val_loader):
             input = sample["image"]
             bpd = sample["bpd"].unsqueeze(1)
+            depth = sample["depth"].unsqueeze(1)
             target = sample["mask"]
             input_var = torch.autograd.Variable(input).float().cuda()
             bpd_var = torch.autograd.Variable(bpd).float().cuda()
+            depth_var = torch.autograd.Variable(depth).float()
             # Compute output
-            output = segmenter(input_var, bpd_var)
+            output = segmenter(input_var, bpd_var, depth_var)
             output = (
                 cv2.resize(
                     output[0, :num_classes].data.cpu().numpy().transpose(1, 2, 0),
