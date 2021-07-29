@@ -15,7 +15,7 @@ NORMALISE_PARAMS = [
 ]  # STD
 BATCH_SIZE = [6] * 12
 NUM_WORKERS = 16
-NUM_CLASSES = [40] * 4
+NUM_CLASSES = [170, 200] 
 LOW_SCALE = [0.5] * 12
 HIGH_SCALE = [2.0] * 12
 IGNORE_LABEL = 255
@@ -32,7 +32,7 @@ PRINT_EVERY = 10
 RANDOM_SEED = 42
 CKPT_PATH = "/content/drive/MyDrive/Super-BPD/LWR/ckpt_multimodalcat_all/"
 RESUME = '' #CKPT_PATH + "353_19/Copy of "
-VAL_EVERY = [10] * 12  # how often to record validation scores
+VAL_EVERY = [5] * 12  # how often to record validation scores
 
 # OPTIMISERS' PARAMETERS
 LR_ENC = [1e-3, 1e-4, 1e-5, .5e-5, 1e-5, 5e-6, 5e-6, 2.5e-6, 2.5e-6, 1e-6, 1e-6, 5e-7]  # TO FREEZE, PUT 0
