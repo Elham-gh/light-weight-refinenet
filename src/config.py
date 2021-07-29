@@ -15,7 +15,7 @@ NORMALISE_PARAMS = [
 ]  # STD
 BATCH_SIZE = [6] * 12
 NUM_WORKERS = 16
-NUM_CLASSES = [170, 200] 
+NUM_CLASSES = [40] 
 LOW_SCALE = [0.5] * 12
 HIGH_SCALE = [2.0] * 12
 IGNORE_LABEL = 255
@@ -27,7 +27,7 @@ ENC_PRETRAINED = True  # pre-trained on ImageNet or randomly initialised
 # GENERAL
 EVALUATE = False
 FREEZE_BN = [True] * 12
-NUM_SEGM_EPOCHS = [100] * 12
+NUM_SEGM_EPOCHS = [150] * 12
 PRINT_EVERY = 10
 RANDOM_SEED = 42
 CKPT_PATH = "/content/drive/MyDrive/Super-BPD/LWR/ckpt_multimodalcat_all/"
