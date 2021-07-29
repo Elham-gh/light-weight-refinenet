@@ -144,8 +144,11 @@ class ResNetLW(nn.Module):
         self.convb4 = nn.Conv2d(32, 64, kernel_size=7, stride=8, dilation=3, padding=12, bias=False)
         self.bnb = nn.BatchNorm2d(32)
 
+        # self.conv1d = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        # self.bn1d = nn.BatchNorm2d(64)
+
         self.do = nn.Dropout(p=0.5)
-        self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        self.conv1 = nn.Conv2d(6, 64, kernel_size=7, stride=2, padding=3, bias=False)
         self.bn1 = nn.BatchNorm2d(64)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
@@ -203,7 +206,7 @@ class ResNetLW(nn.Module):
 
         return nn.Sequential(*layers)
 
-    def forward(self, x, bpd):
+    def forward(self, x, bpd, d):
 
         bpd = self.convb0(bpd) # [6, 128, 250, 250]
         bpd = self.bnb(bpd)
@@ -212,11 +215,13 @@ class ResNetLW(nn.Module):
         bpd3 = self.convb3(bpd) # [6, 64, 63, 63]
         bpd4 = self.convb4(bpd) # [6, 64, 32, 32]
 
+        x = torch.cat((x, d), axis=1) #[6, 6, 500, 500]
+
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
         x = self.maxpool(x)
-
+        
         l1 = self.layer1(x)
         l2 = self.layer2(l1)
         l3 = self.layer3(l2)
@@ -231,8 +236,6 @@ class ResNetLW(nn.Module):
         x4 = self.mflow_conv_g1_b3_joint_varout_dimred(x4)
         x4 = nn.Upsample(size=l3.size()[2:], mode="bilinear", 
                         align_corners=True)(x4) #[6, 256, 32, 32]
-        bpd4 = F.normalize(bpd4, p=2.0, dim=1, eps=1e-6, out=None)
-        x4 = F.normalize(x4, p=2.0, dim=1, eps=1e-6, out=None)
         x4 = torch.cat((x4, bpd4), axis=1) #[6, 320, 32, 32]
         
         x3 = self.p_ims1d2_outl2_dimred(l3)
@@ -244,8 +247,6 @@ class ResNetLW(nn.Module):
         x3 = self.mflow_conv_g2_b3_joint_varout_dimred(x3)
         x3 = nn.Upsample(size=l2.size()[2:], mode="bilinear", 
                         align_corners=True)(x3) #[6, 256, 63, 63]
-        bpd3 = F.normalize(bpd3, p=2.0, dim=1, eps=1e-6, out=None)
-        x3 = F.normalize(x3, p=2.0, dim=1, eps=1e-6, out=None)
         x3 = torch.cat((x3, bpd3), axis=1)
 
         x2 = self.p_ims1d2_outl3_dimred(l2)
@@ -257,8 +258,6 @@ class ResNetLW(nn.Module):
         x2 = self.mflow_conv_g3_b3_joint_varout_dimred(x2)
         x2 = nn.Upsample(size=l1.size()[2:], mode="bilinear", 
                         align_corners=True)(x2) # [6, 256, 125, 125]
-        bpd2 = F.normalize(bpd2, p=2.0, dim=1, eps=1e-6, out=None)
-        x2 = F.normalize(x2, p=2.0, dim=1, eps=1e-6, out=None)
         x2 = torch.cat((x2, bpd2), axis=1)
 
         x1 = self.p_ims1d2_outl4_dimred(l1)
@@ -267,8 +266,6 @@ class ResNetLW(nn.Module):
         x1 = self.conv_red1(x1) # [6, 256, 125, 125]
         x1 = F.relu(x1)
         x1 = self.mflow_conv_g4_pool(x1)
-        bpd1 = F.normalize(bpd1, p=2.0, dim=1, eps=1e-6, out=None) #[6, 16, 125, 125]
-        x1 = F.normalize(x1, p=2.0, dim=1, eps=1e-6, out=None)
         x = torch.cat((x1, bpd1), axis=1) # [6, 272, 125, 125]
         
         out = self.clf_conv(x) # [6, 40, 125, 125]
@@ -281,7 +278,12 @@ def rf_lw50(num_classes, imagenet=False, pretrained=True, **kwargs):
     if imagenet:
         key = "50_imagenet"
         url = models_urls[key]
-        model.load_state_dict(maybe_download(key, url), strict=False)
+        net = maybe_download(key, url)
+        # conv1d = net['conv1.weight']
+        # net['conv1d.weight'] = net['conv1.weight']#torch.cat((net['conv1.weight'], conv1d), axis=1)
+        net['conv1.weight'] = torch.cat((net['conv1.weight'], net['conv1.weight']), axis=1)
+        model.load_state_dict(net, strict=False)
+
     elif pretrained:
         dataset = data_info.get(num_classes, None)
         if dataset:
