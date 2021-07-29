@@ -430,11 +430,14 @@ def train_segmenter(
         start = time.time()
         input = sample['image']
         bpd = sample['bpd'].unsqueeze(1)
-        depth = sample['depth'].unsqueeze(1)
+        depth = sample['depth']
         target = sample["mask"].cuda()
         input_var = torch.autograd.Variable(input).float()
         bpd_var = torch.autograd.Variable(bpd).float()
         depth_var = torch.autograd.Variable(depth).float()
+        # print(input_var.size())
+        # print(depth_var.size())
+        # h
 
         # print(input_var.max(), input_var.min(), input_var.mean())
         # print(bpd_var.max(), bpd_var.min(), bpd_var.mean())
@@ -493,7 +496,7 @@ def validate(segmenter, val_loader, epoch, num_classes=-1):
         for i, sample in enumerate(val_loader):
             input = sample["image"]
             bpd = sample["bpd"].unsqueeze(1)
-            depth = sample["depth"].unsqueeze(1)
+            depth = sample["depth"]
             target = sample["mask"]
             input_var = torch.autograd.Variable(input).float().cuda()
             bpd_var = torch.autograd.Variable(bpd).float().cuda()
