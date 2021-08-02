@@ -135,15 +135,16 @@ class ResNetLW(nn.Module):
         
         self.numd = self.numb = 4
         self.numx = 16
+        self.num_classes = num_classes
         
-        self.convb0 = nn.Conv2d(1, 32, kernel_size=7, stride=2, padding=3, bias=False)
-        self.convb1 = nn.Conv2d(32, self.numb * num_classes / 4, kernel_size=7, stride=2, padding=3, bias=False)
-        self.convb2 = nn.Conv2d(self.numb * num_classes / 4, self.numb * num_classes, kernel_size=7, stride=2, padding=3, bias=False)
-        self.bnb = nn.BatchNorm2d(self.numb * num_classes / 4)
+        self.convb0 = nn.Conv2d(1, 32, kernel_size=5, stride=2, padding=2, bias=False)
+        self.convb1 = nn.Conv2d(32, self.numb * int(num_classes / 2), kernel_size=5, stride=2, padding=2, bias=False)
+        self.convb2 = nn.Conv2d(self.numb * int(num_classes / 2), self.numb * num_classes, kernel_size=5, padding=2, bias=False)
+        self.bnb = nn.BatchNorm2d(32)
         
-        self.convd0 = nn.Conv2d(1, 32, kernel_size=7, stride=2, padding=3, bias=False)
-        self.convd1 = nn.Conv2d(32, self.numd * num_classes / 4, kernel_size=7, stride=2, padding=3, bias=False)
-        self.convd2 = nn.Conv2d(self.numd * num_classes / 4, self.numd * num_classes, kernel_size=7, stride=2, padding=3, bias=False)
+        self.convd0 = nn.Conv2d(1, 32, kernel_size=5, stride=2, padding=2, bias=False)
+        self.convd1 = nn.Conv2d(32, self.numd * int(num_classes / 2), kernel_size=5, stride=2, padding=2, bias=False)
+        self.convd2 = nn.Conv2d(self.numd * int(num_classes / 2), self.numd * num_classes, kernel_size=5, padding=2, bias=False)
         self.bnd = nn.BatchNorm2d(32)
 
         self.do = nn.Dropout(p=0.5)
@@ -170,9 +171,11 @@ class ResNetLW(nn.Module):
 
         self.p_ims1d2_outl4_dimred = conv1x1(256, 256, bias=False)
         self.adapt_stage4_b2_joint_varout_dimred = conv1x1(256, 256, bias=False)
-        self.mflow_conv_g4_pool = self._make_crp(256, numx * num_classes, 4)
+        self.mflow_conv_g4_pool = self._make_crp(256, 256, 4)
+
+        self.adapt_x = nn.Conv2d(256, self.numx * num_classes, kernel_size=1, bias=False)
         
-        self.final_layer = [nn.Conv2d(numx + numb + numd , 1, kernel_size=3, stride=1, padding=1, bias=True) for i in range(num_classes)]
+        self.final_layer = [nn.Conv2d(self.numx + self.numb + self.numd , 1, kernel_size=3, stride=1, padding=1, bias=True) for i in range(num_classes)]
 
 #         self.clf_conv = nn.Conv2d(
 #             257, num_classes, kernel_size=3, stride=1, padding=1, bias=True
@@ -206,17 +209,17 @@ class ResNetLW(nn.Module):
 
     def forward(self, x, bpd, d):
         
-        bpd = self.convb0(bpd)
+        bpd = self.convb0(bpd) #[6, 32, 250, 250]
         bpd = self.bnb(bpd)
-        bpd = self.convb1(bpd)
+        bpd = self.convb1(bpd) #[6, 80, 125, 125]
         bpd = self.do(bpd)
-        bpd = self.convb3(bpd)
+        bpd = self.convb2(bpd) #[6, 160, 125, 125]
         
         d = self.convd0(d)
         d = self.bnd(d)
         d = self.convb1(d)
         d = self.do(d)
-        d = self.convb3(d)
+        d = self.convb2(d)
         
         x = self.conv1(x) #[6, 64, 125, 125]
         x = self.bn1(x)
@@ -257,24 +260,20 @@ class ResNetLW(nn.Module):
         x1 = self.adapt_stage4_b2_joint_varout_dimred(x1) #[6, 256, 125, 125]
         x1 = x1 + x2
         x1 = F.relu(x1)
-        x1 = self.mflow_conv_g4_pool(x1) #[2, 256, 125, 125]
+        x1 = self.mflow_conv_g4_pool(x1) #[6, 256, 125, 125]
+        x1 = self.adapt_x(x1) #[6, 640, 125, 125]
         
-        output = torch.zeros((x.size()[0], num_classes, x1.size()[2], x1.size()[3]))
-        for i in range(num_classes):
-            x_inp = x[i * numx: (i + 1) * numx]
-            bpd_inp = bpd[i * numb: (i + 1) * numb]
-            d_inp = d[i * numd: (i + 1) * numd]
-            inp = torch.cat((x_inp, bpd_inp, d_inpt), axis=1)
-            convolution = self.final_layer[i]
-            output[:, i, :, :] += convolution(inp)
-            
-            
-        
-        
-#         out = self.clf_conv(x1) #[6, 40, 125, 125] 
-        # if torch.isnan(out.sum()):
-        #   print('out')
+        output = torch.zeros((x.size()[0], self.num_classes, x1.size()[2], x1.size()[3])) #[6, 40, 125, 125]
 
+        for i in range(self.num_classes):
+            x_inp = x[:, i * self.numx: (i + 1) * self.numx, :, :] #[6, 16, 125, 125]
+            bpd_inp = bpd[:, i * self.numb: (i + 1) * self.numb, :, :] #[6, 4, 125, 125]
+            d_inp = d[:, i * self.numd: (i + 1) * self.numd, :, :] #[6, 4, 125, 125]
+            inp = torch.cat((x_inp, bpd_inp, d_inp), axis=1) #[6, 24, 125, 125]
+            convolution = self.final_layer[i].cuda()
+            output[:, i, :, :][:, None, :, :] += convolution(inp)
+            print(output.size())
+            
         return out
 
 def rf_lw50(num_classes, imagenet=False, pretrained=True, **kwargs):
@@ -282,12 +281,7 @@ def rf_lw50(num_classes, imagenet=False, pretrained=True, **kwargs):
     if imagenet:
         key = "50_imagenet"
         url = models_urls[key]
-        net = maybe_download(key, url)
-        # conv1d = net['conv1.weight']
-        # net['conv1d.weight'] = net['conv1.weight']#torch.cat((net['conv1.weight'], conv1d), axis=1)
-        net['conv1.weight'] = torch.cat((net['conv1.weight'], net['conv1.weight']), axis=1)
-        model.load_state_dict(net, strict=False)
-
+        model.load_state_dict(maybe_download(key, url), strict=False)
     elif pretrained:
         dataset = data_info.get(num_classes, None)
         if dataset:
