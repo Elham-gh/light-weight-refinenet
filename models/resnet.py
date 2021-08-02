@@ -210,9 +210,9 @@ class ResNetLW(nn.Module):
 
         bpd = self.convb0(bpd) # [6, 128, 250, 250]
         bpd = self.bnb(bpd)
-        bpd1 = self.convb1(bpd) # [6, 1, 125, 125]
+        bpd1 = self.convb1(bpd) # [6, 16, 125, 125]
         bpd1 = self.do(bpd1)
-        bpd2 = self.convb2(bpd) # [6, 1, 125, 125]
+        bpd2 = self.convb2(bpd) # [6, 32, 125, 125]
         bpd2 = self.do(bpd2)
         bpd3 = self.convb3(bpd) # [6, 64, 63, 63]
         bpd4 = self.convb4(bpd) # [6, 64, 32, 32]
