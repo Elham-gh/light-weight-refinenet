@@ -177,7 +177,7 @@ class ResNetLW(nn.Module):
         self.mflow_conv_g4_pool = self._make_crp(256, 256, 4)
 
         self.clf_conv = nn.Conv2d(
-            288, num_classes, kernel_size=3, stride=1, padding=1, bias=True
+            272, num_classes, kernel_size=3, stride=1, padding=1, bias=True
         )
 
     def _make_crp(self, in_planes, out_planes, stages):
@@ -229,8 +229,6 @@ class ResNetLW(nn.Module):
         l3 = self.layer3(l2)
         l4 = self.layer4(l3)
 
-        res = self.conv_res1(l1)
-
         l4 = self.do(l4)
         l3 = self.do(l3)
 
@@ -270,7 +268,7 @@ class ResNetLW(nn.Module):
         x1 = self.conv_red1(x1) # [6, 256, 125, 125]
         x1 = F.relu(x1)
         x1 = self.mflow_conv_g4_pool(x1)
-        x = torch.cat((x1, bpd1, res), axis=1) # [6, 272+16, 125, 125]
+        x = torch.cat((x1, bpd1), axis=1) # [6, 272+16, 125, 125]
         
         out = self.clf_conv(x) # [6, 40, 125, 125]
         
