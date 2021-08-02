@@ -175,7 +175,7 @@ class ResNetLW(nn.Module):
 
         self.adapt_x = nn.Conv2d(256, self.numx * num_classes, kernel_size=1, bias=False)
         
-        self.final_layer = [nn.Conv2d(self.numx + self.numb + self.numd , 1, kernel_size=3, stride=1, padding=1, bias=True) for i in range(num_classes)]
+        self.final_layer = [nn.Conv2d(self.numx + self.numb + self.numd , 1, kernel_size=3, padding=1, bias=True).cuda() for i in range(num_classes)]
 
 #         self.clf_conv = nn.Conv2d(
 #             257, num_classes, kernel_size=3, stride=1, padding=1, bias=True
@@ -263,16 +263,15 @@ class ResNetLW(nn.Module):
         x1 = self.mflow_conv_g4_pool(x1) #[6, 256, 125, 125]
         x1 = self.adapt_x(x1) #[6, 640, 125, 125]
         
-        output = torch.zeros((x.size()[0], self.num_classes, x1.size()[2], x1.size()[3])) #[6, 40, 125, 125]
+        out = torch.zeros((x.size()[0], self.num_classes, x1.size()[2], x1.size()[3])).cuda() #[6, 40, 125, 125]
 
         for i in range(self.num_classes):
-            x_inp = x[:, i * self.numx: (i + 1) * self.numx, :, :] #[6, 16, 125, 125]
+            x_inp = x1[:, i * self.numx: (i + 1) * self.numx, :, :] #[6, 16, 125, 125]
             bpd_inp = bpd[:, i * self.numb: (i + 1) * self.numb, :, :] #[6, 4, 125, 125]
             d_inp = d[:, i * self.numd: (i + 1) * self.numd, :, :] #[6, 4, 125, 125]
             inp = torch.cat((x_inp, bpd_inp, d_inp), axis=1) #[6, 24, 125, 125]
-            convolution = self.final_layer[i].cuda()
-            output[:, i, :, :][:, None, :, :] += convolution(inp)
-            print(output.size())
+            convolution = self.final_layer[i]
+            out[:, i, :, :][:, None, :, :] += convolution(inp) #RuntimeError: Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!
             
         return out
 
