@@ -171,21 +171,12 @@ class Normalise(object):
         image = (self.scale * image - self.mean) / self.std
         
         bpd = ((bpd - bpd.min()) / (bpd.max() - bpd.min())) 
-        # bpdlist = []
-        # for i in range(3):
-        #     bpdlist.append((self.scale * bpd - self.mean[0][0][i]) / self.std[0][0][i])
-        # bpd = np.array(bpdlist).mean(axis=0)
         
-        depth = ((depth - depth.min()) / (depth.max() - depth.min()))[None, :, :]
-        depths = np.zeros((3, depth.shape[1], depth.shape[2]))
-        for i in range(3):
-            depths[i] = (depth - self.mean[0][0][i]) / self.std[0][0][i]
-        # depth = np.array(depths).mean(axis=0)
-        # depth = depths.transpose(1, 2, 0)
-
+        depth = ((depth - depth.min()) / (depth.max() - depth.min()))
+        
         return {
             "image": image, "mask": sample["mask"], "name": sample["name"],
-            "bpd": bpd, "depth": depths
+            "bpd": bpd, "depth": depth
         }
 
 
