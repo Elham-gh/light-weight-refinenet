@@ -422,6 +422,7 @@ def train_segmenter(
             if isinstance(m, nn.BatchNorm2d):
                 m.eval()
     batch_time = AverageMeter()
+    torch.autograd.set_detect_anomaly(True)
     losses = AverageMeter()
     los = []
     for i, sample in enumerate(train_loader):
@@ -459,7 +460,8 @@ def train_segmenter(
         los.append(loss.item())
         optim_enc.zero_grad()
         optim_dec.zero_grad()
-        loss.backward(retain_graph=True)
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(segmenter.parameters(), 0.5)
         optim_enc.step()
         optim_dec.step()
         losses.update(loss.item())
