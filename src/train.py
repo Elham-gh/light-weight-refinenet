@@ -444,7 +444,7 @@ def train_segmenter(
         # print(bpd_var.max(), bpd_var.min(), bpd_var.mean())
         # print(depth_var.max(), depth_var.min(), depth_var.mean())
         # afsd
-        if torch.isnan(bpd.sum()):
+        if torch.isnan(bpd.sum()) or torch.isnan(depth.sum()):
             with open('./nan.txt', 'w') as f:
                 f.write(str(sample['name']))
                 continue
