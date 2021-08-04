@@ -317,7 +317,9 @@ def rf_lw152(num_classes, imagenet=False, pretrained=True, **kwargs):
     if imagenet:
         key = "152_imagenet"
         url = models_urls[key]
-        model.load_state_dict(maybe_download(key, url), strict=False)
+        net = maybe_download(key, url)
+        net['conv1.weight'] = torch.cat((net['conv1.weight'], net['conv1.weight']), axis=1)
+        model.load_state_dict(net, strict=False)
     elif pretrained:
         dataset = data_info.get(num_classes, None)
         if dataset:
