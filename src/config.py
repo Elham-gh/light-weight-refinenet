@@ -27,7 +27,7 @@ ENC_PRETRAINED = True  # pre-trained on ImageNet or randomly initialised
 # GENERAL
 EVALUATE = False
 FREEZE_BN = [True] * 12
-NUM_SEGM_EPOCHS = [50] * 12
+NUM_SEGM_EPOCHS = [100] * 12
 PRINT_EVERY = 10
 RANDOM_SEED = 42
 CKPT_PATH = "/content/drive/MyDrive/Super-BPD/LWR/ckpt_multimodalcat_res/"
@@ -35,8 +35,8 @@ RESUME = '' #CKPT_PATH #+ "353_19/Copy of "
 VAL_EVERY = [5] * 12  # how often to record validation scores
 
 # OPTIMISERS' PARAMETERS
-LR_ENC = [2.5e-3, 1e-3, 1e-3, 5e-4, 5e-4, 2.5e-4, 2.5e-4, 1e-4, 1e-4, 5e-5, 5e-5, 5e-5, 2.5e-5, 2.5e-6, 2.5e-6, 1e-6, 1e-6, 5e-7]  # TO FREEZE, PUT 0
-LR_DEC = [2.5e-2, 1e-2, 1e-2, 5e-3, 5e-3, 2.5e-3, 2.5e-3, 1e-3, 1e-3, 5e-4, 5e-4, 5e-4, 2.5e-4, 2.5e-5, 2.5e-5, 1e-5, 1e-5, 5e-6]
+LR_ENC = [2.5e-3, 1e-3, 5e-4, 2.5e-4, 1e-4, 5e-5, 2.5e-5, 2.5e-6, 2.5e-6, 1e-6, 1e-6, 5e-7]  # TO FREEZE, PUT 0
+LR_DEC = [2.5e-2, 1e-2, 5e-3, 2.5e-3, 1e-3, 5e-4, 2.5e-4, 2.5e-5, 2.5e-5, 1e-5, 1e-5, 5e-6]
 MOM_ENC = [0.9] * 12  # TO FREEZE, PUT 0
 MOM_DEC = [0.9] * 12
 WD_ENC = [1e-5] * 12  # TO FREEZE, PUT 0
