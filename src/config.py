@@ -30,7 +30,7 @@ FREEZE_BN = [True] * 12
 NUM_SEGM_EPOCHS = [100] * 12
 PRINT_EVERY = 10
 RANDOM_SEED = 42
-CKPT_PATH = "/content/drive/MyDrive/Super-BPD/LWR/ckpt_multimodalcat_res/"
+CKPT_PATH = "/content/drive/MyDrive/Super-BPD/LWR/ckpt_classaware3/"
 RESUME = '' #CKPT_PATH #+ "353_19/Copy of "
 VAL_EVERY = [5] * 12  # how often to record validation scores
 
