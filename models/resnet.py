@@ -133,19 +133,13 @@ class ResNetLW(nn.Module):
         self.inplanes = 64
         super(ResNetLW, self).__init__()
         
-        self.numd = self.numb = 4
-        self.numx = 16
+        self.numb = 8
         self.num_classes = num_classes
         
         self.convb0 = nn.Conv2d(1, 32, kernel_size=5, stride=2, padding=2, bias=False)
         self.convb1 = nn.Conv2d(32, self.numb * int(num_classes / 2), kernel_size=5, stride=2, padding=2, bias=False)
         self.convb2 = nn.Conv2d(self.numb * int(num_classes / 2), self.numb * num_classes, kernel_size=5, padding=2, bias=False)
         self.bnb = nn.BatchNorm2d(32)
-        
-        self.convd0 = nn.Conv2d(1, 32, kernel_size=5, stride=2, padding=2, bias=False)
-        self.convd1 = nn.Conv2d(32, self.numd * int(num_classes / 2), kernel_size=5, stride=2, padding=2, bias=False)
-        self.convd2 = nn.Conv2d(self.numd * int(num_classes / 2), self.numd * num_classes, kernel_size=5, padding=2, bias=False)
-        self.bnd = nn.BatchNorm2d(32)
 
         self.do = nn.Dropout(p=0.5)
         self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
@@ -172,14 +166,8 @@ class ResNetLW(nn.Module):
         self.p_ims1d2_outl4_dimred = conv1x1(256, 256, bias=False)
         self.adapt_stage4_b2_joint_varout_dimred = conv1x1(256, 256, bias=False)
         self.mflow_conv_g4_pool = self._make_crp(256, 256, 4)
-
-        self.adapt_x = nn.Conv2d(256, self.numx * num_classes, kernel_size=1, bias=False)
         
-        self.final_layer = [nn.Conv2d(self.numx + self.numb + self.numd , 1, kernel_size=3, padding=1, bias=True).cuda() for i in range(num_classes)]
-
-#         self.clf_conv = nn.Conv2d(
-#             257, num_classes, kernel_size=3, stride=1, padding=1, bias=True
-#         )
+        self.final_layer = [nn.Conv2d(256 + self.numb , 1, kernel_size=3, padding=1, bias=True).cuda() for i in range(num_classes)]
 
     def _make_crp(self, in_planes, out_planes, stages):
         layers = [CRPBlock(in_planes, out_planes, stages)]
@@ -214,13 +202,7 @@ class ResNetLW(nn.Module):
         bpd = self.convb1(bpd) #[6, 80, 125, 125]
         bpd = self.do(bpd)
         bpd = self.convb2(bpd) #[6, 160, 125, 125]
-        
-        d = self.convd0(d)
-        d = self.bnd(d)
-        d = self.convb1(d)
-        d = self.do(d)
-        d = self.convb2(d)
-        
+                
         x = self.conv1(x) #[6, 64, 125, 125]
         x = self.bn1(x)
         x = self.relu(x)
@@ -261,15 +243,12 @@ class ResNetLW(nn.Module):
         x1 = x1 + x2
         x1 = F.relu(x1)
         x1 = self.mflow_conv_g4_pool(x1) #[6, 256, 125, 125]
-        x1 = self.adapt_x(x1) #[6, 640, 125, 125]
         
         out = torch.zeros((x.size()[0], self.num_classes, x1.size()[2], x1.size()[3])).cuda() #[6, 40, 125, 125]
 
         for i in range(self.num_classes):
-            x_inp = x1[:, i * self.numx: (i + 1) * self.numx, :, :] #[6, 16, 125, 125]
             bpd_inp = bpd[:, i * self.numb: (i + 1) * self.numb, :, :] #[6, 4, 125, 125]
-            d_inp = d[:, i * self.numd: (i + 1) * self.numd, :, :] #[6, 4, 125, 125]
-            inp = torch.cat((x_inp, bpd_inp, d_inp), axis=1) #[6, 24, 125, 125]
+            inp = torch.cat((x1, bpd_inp), axis=1) #[6, 24, 125, 125]
             convolution = self.final_layer[i]
             out[:, i, :, :][:, None, :, :] += convolution(inp) #RuntimeError: Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!
             
