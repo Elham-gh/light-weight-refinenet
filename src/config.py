@@ -13,7 +13,7 @@ NORMALISE_PARAMS = [
     np.array([0.485, 0.456, 0.406]).reshape((1, 1, 3)),  # MEAN
     np.array([0.229, 0.224, 0.225]).reshape((1, 1, 3)),
 ]  # STD
-BATCH_SIZE = [6] * 12
+BATCH_SIZE = [4] * 12
 NUM_WORKERS = 16
 NUM_CLASSES = [40] * 6
 LOW_SCALE = [0.5] * 12
@@ -30,7 +30,7 @@ FREEZE_BN = [True] * 12
 NUM_SEGM_EPOCHS = [100] * 12
 PRINT_EVERY = 10
 RANDOM_SEED = 42
-CKPT_PATH = "/content/drive/MyDrive/Super-BPD/LWR/ckpt_classaware3/"
+CKPT_PATH = "/content/drive/MyDrive/Super-BPD/LWR/ckpt_class2/"
 RESUME = '' #CKPT_PATH #+ "353_19/Copy of "
 VAL_EVERY = [5] * 12  # how often to record validation scores
 
