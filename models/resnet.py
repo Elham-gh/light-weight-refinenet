@@ -143,9 +143,10 @@ class ResNetLW(nn.Module):
         self.convb4 = nn.Conv2d(32, 64, kernel_size=7, stride=8, dilation=3, padding=12, bias=False)
         self.bnb = nn.BatchNorm2d(32)
         self.convb1 = nn.Conv2d(32, self.numb * int(num_classes), kernel_size=5, stride=2, padding=2, bias=False)
+        self.dob = nn.Dropout(p=0.2)
         # self.convb2 = nn.Conv2d(self.numb * int(num_classes / 2), self.numb * num_classes, kernel_size=5, padding=2, bias=False)
 
-        self.conv_res1 = nn.Conv2d(256, 16, kernel_size=1, bias=False)
+        # self.conv_res1 = nn.Conv2d(256, 16, kernel_size=1, bias=False)
         # self.bn1d = nn.BatchNorm2d(64)
 
         self.do = nn.Dropout(p=0.5)
@@ -207,10 +208,10 @@ class ResNetLW(nn.Module):
 
     def forward(self, x, bpd, d):
 
-        bpd = self.convb0(bpd) # [6, 128, 250, 250]
+        bpd = self.convb0(bpd) # [6, 32, 250, 250]
         bpd = self.bnb(bpd)
         # bpd = self.relu(bpd)
-        bpd = self.do(bpd)
+        bpd = self.dob(bpd)
         bpd1 = self.convb1(bpd) # [2, 320, 125, 125]
         bpd2 = self.convb2(bpd) # [6, 32, 125, 125]
         bpd3 = self.convb3(bpd) # [6, 64, 63, 63]
