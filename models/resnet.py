@@ -136,10 +136,17 @@ class ResNetLW(nn.Module):
         self.numb = 8
         self.num_classes = num_classes
         
-        self.convb0 = nn.Conv2d(1, 32, kernel_size=5, stride=2, padding=2, bias=False)
-        self.convb1 = nn.Conv2d(32, self.numb * int(num_classes / 2), kernel_size=5, stride=2, padding=2, bias=False)
-        self.convb2 = nn.Conv2d(self.numb * int(num_classes / 2), self.numb * num_classes, kernel_size=5, padding=2, bias=False)
+        self.convb0 = nn.Conv2d(1, 32, kernel_size=7, stride=2, padding=3, bias=False)
+        # self.convb1 = nn.Conv2d(32, 16, kernel_size=7, stride=2, padding=3, bias=False)
+        self.convb2 = nn.Conv2d(32, 32, kernel_size=7, stride=2, padding=3, bias=False)
+        self.convb3 = nn.Conv2d(32, 64, kernel_size=7, stride=4, dilation=2, padding=6, bias=False)
+        self.convb4 = nn.Conv2d(32, 64, kernel_size=7, stride=8, dilation=3, padding=12, bias=False)
         self.bnb = nn.BatchNorm2d(32)
+        self.convb1 = nn.Conv2d(32, self.numb * int(num_classes), kernel_size=5, stride=2, padding=2, bias=False)
+        # self.convb2 = nn.Conv2d(self.numb * int(num_classes / 2), self.numb * num_classes, kernel_size=5, padding=2, bias=False)
+
+        self.conv_res1 = nn.Conv2d(256, 16, kernel_size=1, bias=False)
+        # self.bn1d = nn.BatchNorm2d(64)
 
         self.do = nn.Dropout(p=0.5)
         self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
@@ -153,20 +160,23 @@ class ResNetLW(nn.Module):
         self.p_ims1d2_outl1_dimred = conv1x1(2048, 512, bias=False)
         self.mflow_conv_g1_pool = self._make_crp(512, 512, 4)
         self.mflow_conv_g1_b3_joint_varout_dimred = conv1x1(512, 256, bias=False)
-        self.p_ims1d2_outl2_dimred = conv1x1(1024, 256, bias=False)
-        self.adapt_stage2_b2_joint_varout_dimred = conv1x1(256, 256, bias=False)
+        self.p_ims1d2_outl2_dimred = conv1x1(1024, 320, bias=False)
+        self.adapt_stage2_b2_joint_varout_dimred = conv1x1(320, 320, bias=False)
+        self.conv_red3 = conv1x1(320, 256, bias=False)
         self.mflow_conv_g2_pool = self._make_crp(256, 256, 4)
         self.mflow_conv_g2_b3_joint_varout_dimred = conv1x1(256, 256, bias=False)
 
-        self.p_ims1d2_outl3_dimred = conv1x1(512, 256, bias=False)
-        self.adapt_stage3_b2_joint_varout_dimred = conv1x1(256, 256, bias=False)
+        self.p_ims1d2_outl3_dimred = conv1x1(512, 320, bias=False)
+        self.adapt_stage3_b2_joint_varout_dimred = conv1x1(320, 320, bias=False)
+        self.conv_red2 = conv1x1(320, 256, bias=False)
         self.mflow_conv_g3_pool = self._make_crp(256, 256, 4)
         self.mflow_conv_g3_b3_joint_varout_dimred = conv1x1(256, 256, bias=False)
 
-        self.p_ims1d2_outl4_dimred = conv1x1(256, 256, bias=False)
-        self.adapt_stage4_b2_joint_varout_dimred = conv1x1(256, 256, bias=False)
+        self.p_ims1d2_outl4_dimred = conv1x1(256, 288, bias=False)
+        self.adapt_stage4_b2_joint_varout_dimred = conv1x1(288, 288, bias=False)
+        self.conv_red1 = conv1x1(288, 256, bias=False)
         self.mflow_conv_g4_pool = self._make_crp(256, 256, 4)
-        
+
         self.final_layer = [nn.Conv2d(256 + self.numb , 1, kernel_size=3, padding=1, bias=True).cuda() for i in range(num_classes)]
 
     def _make_crp(self, in_planes, out_planes, stages):
@@ -196,70 +206,90 @@ class ResNetLW(nn.Module):
         return nn.Sequential(*layers)
 
     def forward(self, x, bpd, d):
-        
-        bpd = self.convb0(bpd) #[6, 32, 250, 250]
+
+        bpd = self.convb0(bpd) # [6, 128, 250, 250]
         bpd = self.bnb(bpd)
-        bpd = self.convb1(bpd) #[6, 80, 125, 125]
+        # bpd = self.relu(bpd)
         bpd = self.do(bpd)
-        bpd = self.convb2(bpd) #[6, 160, 125, 125]
-                
-        x = self.conv1(x) #[6, 64, 125, 125]
+        bpd1 = self.convb1(bpd) # [2, 320, 125, 125]
+        bpd2 = self.convb2(bpd) # [6, 32, 125, 125]
+        bpd3 = self.convb3(bpd) # [6, 64, 63, 63]
+        bpd4 = self.convb4(bpd) # [6, 64, 32, 32]
+
+        # x = torch.cat((x, d), axis=1) #[6, 6, 500, 500]
+
+        x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
         x = self.maxpool(x)
         
-        l1 = self.layer1(x) #[6, 256, 125, 125]
-        l2 = self.layer2(l1) #[6, 512, 63, 63]
-        l3 = self.layer3(l2) #[6, 1024, 32, 32]
-        l4 = self.layer4(l3) #[6, 2048, 16, 16]
-        
+        l1 = self.layer1(x)
+        l2 = self.layer2(l1)
+        l3 = self.layer3(l2)
+        l4 = self.layer4(l3)
+
         l4 = self.do(l4)
         l3 = self.do(l3)
-        
-        x4 = self.p_ims1d2_outl1_dimred(l4) #[6, 512, 16, 16]
+
+        x4 = self.p_ims1d2_outl1_dimred(l4)
         x4 = self.relu(x4)
-        x4 = self.mflow_conv_g1_pool(x4) #[6, 512, 16, 16]
-        x4 = self.mflow_conv_g1_b3_joint_varout_dimred(x4) #[6, 256, 16, 16]
-        x4 = nn.Upsample(size=l3.size()[2:], mode="bilinear", align_corners=True)(x4) #[6, 256, 32, 32]
+        x4 = self.mflow_conv_g1_pool(x4)
+        x4 = self.mflow_conv_g1_b3_joint_varout_dimred(x4)
+        x4 = nn.Upsample(size=l3.size()[2:], mode="bilinear", 
+                        align_corners=True)(x4) #[6, 256, 32, 32]
+        x4 = torch.cat((x4, bpd4), axis=1) #[6, 320, 32, 32]
         
-        x3 = self.p_ims1d2_outl2_dimred(l3) #[6, 256, 32, 32]
-        x3 = self.adapt_stage2_b2_joint_varout_dimred(x3)  #[6, 256, 32, 32]
+        x3 = self.p_ims1d2_outl2_dimred(l3)
+        x3 = self.adapt_stage2_b2_joint_varout_dimred(x3)
         x3 = x3 + x4
+        x3 = self.conv_red3(x3)
         x3 = F.relu(x3)
-        x3 = self.mflow_conv_g2_pool(x3) #[6, 256, 32, 32]
-        x3 = self.mflow_conv_g2_b3_joint_varout_dimred(x3) #[6, 256, 32, 32]
-        x3 = nn.Upsample(size=l2.size()[2:], mode="bilinear", align_corners=True)(x3) #[6, 256, 63, 63]
-        
-        x2 = self.p_ims1d2_outl3_dimred(l2) #[6, 256, 63, 63]
-        x2 = self.adapt_stage3_b2_joint_varout_dimred(x2) #[6, 256, 63, 63]
+        x3 = self.mflow_conv_g2_pool(x3)
+        x3 = self.mflow_conv_g2_b3_joint_varout_dimred(x3)
+        x3 = nn.Upsample(size=l2.size()[2:], mode="bilinear", 
+                        align_corners=True)(x3) #[6, 256, 63, 63]
+        x3 = torch.cat((x3, bpd3), axis=1)
+
+        x2 = self.p_ims1d2_outl3_dimred(l2)
+        x2 = self.adapt_stage3_b2_joint_varout_dimred(x2)
         x2 = x2 + x3
+        x2 = self.conv_red2(x2)
         x2 = F.relu(x2)
-        x2 = self.mflow_conv_g3_pool(x2) #[6, 256, 63, 63]
-        x2 = self.mflow_conv_g3_b3_joint_varout_dimred(x2) #[6, 256, 63, 63]
-        x2 = nn.Upsample(size=l1.size()[2:], mode="bilinear", align_corners=True)(x2) #[6, 256, 125, 125]
-        
-        x1 = self.p_ims1d2_outl4_dimred(l1) #[6, 256, 125, 125]
-        x1 = self.adapt_stage4_b2_joint_varout_dimred(x1) #[6, 256, 125, 125]
+        x2 = self.mflow_conv_g3_pool(x2)
+        x2 = self.mflow_conv_g3_b3_joint_varout_dimred(x2)
+        x2 = nn.Upsample(size=l1.size()[2:], mode="bilinear", 
+                        align_corners=True)(x2) # [6, 256, 125, 125]
+        x2 = torch.cat((x2, bpd2), axis=1)
+
+        x1 = self.p_ims1d2_outl4_dimred(l1)
+        x1 = self.adapt_stage4_b2_joint_varout_dimred(x1)
         x1 = x1 + x2
+        x1 = self.conv_red1(x1) # [6, 256, 125, 125]
         x1 = F.relu(x1)
-        x1 = self.mflow_conv_g4_pool(x1) #[6, 256, 125, 125]
+        x1 = self.mflow_conv_g4_pool(x1)
         
         out = torch.zeros((x.size()[0], self.num_classes, x1.size()[2], x1.size()[3])).cuda() #[6, 40, 125, 125]
 
         for i in range(self.num_classes):
-            bpd_inp = bpd[:, i * self.numb: (i + 1) * self.numb, :, :] #[6, 4, 125, 125]
+            bpd_inp = bpd1[:, i * self.numb: (i + 1) * self.numb, :, :] #[6, 4, 125, 125]
             inp = torch.cat((x1, bpd_inp), axis=1) #[6, 24, 125, 125]
             convolution = self.final_layer[i]
             out[:, i, :, :][:, None, :, :] += convolution(inp) #RuntimeError: Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!
-            
+        
         return out
+
 
 def rf_lw50(num_classes, imagenet=False, pretrained=True, **kwargs):
     model = ResNetLW(Bottleneck, [3, 4, 6, 3], num_classes=num_classes, **kwargs)
     if imagenet:
         key = "50_imagenet"
         url = models_urls[key]
-        model.load_state_dict(maybe_download(key, url), strict=False)
+        net = maybe_download(key, url)
+        # conv1d = net['conv1.weight']
+        # net['conv1d.weight'] = net['conv1.weight']#torch.cat((net['conv1.weight'], conv1d), axis=1)
+        # net['conv1.weight'] = torch.cat((net['conv1.weight'], net['conv1.weight']), axis=1)
+        model.load_state_dict(net, strict=False)
+
     elif pretrained:
         dataset = data_info.get(num_classes, None)
         if dataset:
@@ -291,7 +321,9 @@ def rf_lw152(num_classes, imagenet=False, pretrained=True, **kwargs):
     if imagenet:
         key = "152_imagenet"
         url = models_urls[key]
-        model.load_state_dict(maybe_download(key, url), strict=False)
+        net = maybe_download(key, url)
+        net['conv1.weight'] = torch.cat((net['conv1.weight'], net['conv1.weight']), axis=1)
+        model.load_state_dict(net, strict=False)
     elif pretrained:
         dataset = data_info.get(num_classes, None)
         if dataset:
