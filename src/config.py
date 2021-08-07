@@ -28,7 +28,7 @@ ENC_PRETRAINED = True  # pre-trained on ImageNet or randomly initialised
 # GENERAL
 EVALUATE = False
 FREEZE_BN = [True] * 1
-NUM_SEGM_EPOCHS = [1000] * 6
+NUM_SEGM_EPOCHS = [100] * 6
 PRINT_EVERY = 10
 RANDOM_SEED = 42
 CKPT_PATH = '/content/drive/MyDrive/Super-BPD/LWR/ckpt_att/'
