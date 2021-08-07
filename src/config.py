@@ -13,7 +13,7 @@ NORMALISE_PARAMS = [
     np.array([0.485, 0.456, 0.406]).reshape((1, 1, 3)),  # MEAN
     np.array([0.229, 0.224, 0.225]).reshape((1, 1, 3)),
 ]  # STD
-BATCH_SIZE = [1] * 6
+BATCH_SIZE = [6] * 6
 BATCH_MEAN = 12
 NUM_WORKERS = 4
 NUM_CLASSES = [40] * 6
@@ -27,20 +27,20 @@ ENC_PRETRAINED = True  # pre-trained on ImageNet or randomly initialised
 
 # GENERAL
 EVALUATE = False
-FREEZE_BN = [True] * 6
-NUM_SEGM_EPOCHS = [100] * 6
+FREEZE_BN = [True] * 1
+NUM_SEGM_EPOCHS = [1000] * 6
 PRINT_EVERY = 10
 RANDOM_SEED = 42
 CKPT_PATH = '/content/drive/MyDrive/Super-BPD/LWR/ckpt_att/'
 VAL_EVERY = [10] * 6  # how often to record validation scores
-RESUME = ''#CKPT_PATH
+RESUME = '' #CKPT_PATH
 
 # OPTIMISERS' PARAMETERS
-LR_ENC = [5e-4, 2.5e-4, 1e-4, 5e-5]  # TO FREEZE, PUT 0
-LR_DEC = [5e-3, 2.5e-3, 1e-3, 5e-4]
+LR_ENC = [1e-3, 5e-4, 2.5e-4, 1e-4]  # TO FREEZE, PUT 0
+LR_DEC = [1e-2, 5e-3, 2.5e-3, 1e-3]
 
-MOM_ENC = [.9] * 6  # TO FREEZE, PUT 0
-MOM_DEC = [.9] * 6
+MOM_ENC = [0] * 6  # TO FREEZE, PUT 0
+MOM_DEC = [0] * 6
 WD_ENC = [1e-5] * 6  # TO FREEZE, PUT 0
 WD_DEC = [1e-5] * 6
 OPTIM_DEC = "sgd"
