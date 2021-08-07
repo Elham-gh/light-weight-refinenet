@@ -230,6 +230,7 @@ class ResNetLW(nn.Module):
 
         bpd = self.conv_att1(bpd) #[12, 128, 250, 250]
         bpd = self.bnatt(bpd)
+        bpd = self.relu(bpd)
         bpd = self.conv_att2(bpd) #[12, 256, 125, 125]
         bpd = self.conv_att3(bpd) #[2, 64, 125, 125]
         
