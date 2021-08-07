@@ -28,16 +28,16 @@ ENC_PRETRAINED = True  # pre-trained on ImageNet or randomly initialised
 # GENERAL
 EVALUATE = False
 FREEZE_BN = [True] * 6
-NUM_SEGM_EPOCHS = [60] * 6
+NUM_SEGM_EPOCHS = [100] * 6
 PRINT_EVERY = 10
 RANDOM_SEED = 42
-CKPT_PATH = '/content/drive/MyDrive/Super-BPD/LWR/ckpt_att_1C/'
+CKPT_PATH = '/content/drive/MyDrive/Super-BPD/LWR/ckpt_att/'
 VAL_EVERY = [10] * 6  # how often to record validation scores
-RESUME = ''#'/content/drive/MyDrive/Super-BPD/LWR/ckpt_att_batch/'
+RESUME = ''#CKPT_PATH
 
 # OPTIMISERS' PARAMETERS
-LR_ENC = [5e-5, 2.5e-6, 1e-6, 5e-7, 2.5e-7, 1e-7]  # TO FREEZE, PUT 0
-LR_DEC = [5e-4, 2.5e-5, 1e-5, 5e-6, 2.5e-6, 1e-6]
+LR_ENC = [5e-4, 2.5e-4, 1e-4, 5e-5]  # TO FREEZE, PUT 0
+LR_DEC = [5e-3, 2.5e-3, 1e-3, 5e-4]
 
 MOM_ENC = [.9] * 6  # TO FREEZE, PUT 0
 MOM_DEC = [.9] * 6
