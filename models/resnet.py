@@ -174,7 +174,6 @@ class ResNetLW(nn.Module):
         super(ResNetLW, self).__init__()
         self.do = nn.Dropout(p=0.5)
         self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
-        self.conv1b = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
         
         self.conv_att1 = nn.Conv2d(1, 128, kernel_size=3, stride=2, padding=1, bias=False)
         self.conv_att2 = nn.Conv2d(128, 256, kernel_size=3, stride=2, padding=1, bias=False)
