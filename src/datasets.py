@@ -201,7 +201,7 @@ class NYUDataset(Dataset):
         """
         with open(data_file, "rb") as f:###* rb
             datalist = f.readlines()
-        self.datalist = [i[:6].decode("utf-8") + '.png' for i in datalist]
+        self.datalist = [i[:-1].decode("utf-8") + '.png' for i in datalist]
         self.root_dir = data_dir
         self.transform_trn = transform_trn
         self.transform_val = transform_val
@@ -216,10 +216,10 @@ class NYUDataset(Dataset):
         return len(self.datalist)
 
     def __getitem__(self, idx):
-        img_name = os.path.join(self.root_dir, 'rgb', self.datalist[idx])
-        msk_name = os.path.join(self.root_dir, 'masks', self.datalist[idx])
-        bpd_name = self.datalist[idx][:6]
-
+        img_name = os.path.join(self.root_dir, 'images', self.datalist[idx])
+        msk_name = os.path.join(self.root_dir, 'labels', self.datalist[idx])
+        bpd_name = self.datalist[idx][4:-4]
+        
         def read_image(x):
             img_arr = np.array(Image.open(x))
             if len(img_arr.shape) == 2:  # grayscale
