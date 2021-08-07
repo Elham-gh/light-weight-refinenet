@@ -155,20 +155,14 @@ class Self_Attn(nn.Module):
         """
         
         m_batchsize, C, width, height = x.size()
-        proj_query  = self.query_conv(x).view(m_batchsize,-1,width*height).permute(0,2,1) # B X C X (N) #***
-        # print('query', proj_query.size()) #[2, 15625, 256]
-        proj_key =  self.key_conv(b).view(m_batchsize,-1,width*height) # B X C x (*W*H)
-        # print('key', proj_key.size()) #[2, 256, 15625]
-        energy =  torch.bmm(proj_query, proj_key) # transpose check #???
-        # print('energy', energy.size()) #[2, 15625, 15625]
-        attention = self.softmax(energy) # B X (N) X (N) 
-        # print('attention', attention.size()) # [2, 15625, 15625]
-        proj_value = self.value_conv(x).view(m_batchsize,-1,width*height) # B X C X N
-        # print('value', proj_value.size()) #[2, 256, 15625]
+        proj_query  = self.query_conv(x).view(m_batchsize,-1,width*height).permute(0,2,1) # B X C X (N) [2, 15625, 256]
+        proj_key =  self.key_conv(b).view(m_batchsize,-1,width*height) # B X C x (*W*H) [2, 256, 15625]
+        energy =  torch.bmm(proj_query, proj_key) # transpose check [2, 15625, 15625]
+        attention = self.softmax(energy) # B X (N) X (N) [2, 15625, 15625]
+        proj_value = self.value_conv(b).view(m_batchsize,-1,width*height) # B X C X N [2, 256, 15625]
 
         out = torch.bmm(proj_value, attention.permute(0,2,1))
-        out = out.view(m_batchsize, C, width, height)
-        # print('out', out.size()) #[2, 256, 125, 125]
+        out = out.view(m_batchsize, C, width, height) #[2, 256, 125, 125]
         
         out = self.gamma * out + x #residual connection
         return out#, attention      
@@ -185,8 +179,8 @@ class ResNetLW(nn.Module):
         self.conv_att1 = nn.Conv2d(1, 128, kernel_size=3, stride=2, padding=1, bias=False)
         self.conv_att2 = nn.Conv2d(128, 256, kernel_size=3, stride=2, padding=1, bias=False)
         self.bnatt = nn.BatchNorm2d(128)
-        #* TODO: nn.Conv2d(256, 64, kernel_size=3)
         self.conv_att3 = nn.Conv2d(256, 64, kernel_size=3, stride=2, bias=False) 
+        self.conv_attx = nn.Conv2d(256, 64, kernel_size=3, stride=2, bias=False) 
 
         self.bn1 = nn.BatchNorm2d(64)
         self.relu = nn.ReLU(inplace=True)
@@ -243,47 +237,34 @@ class ResNetLW(nn.Module):
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
-        x = self.maxpool(x)
-
-        # print('conv1', x.size()) #[6, 64, 125, 125]
-        l1 = self.layer1(x)
-        # print('l1', l1.size()) #[6, 256, 125, 125]
-        l2 = self.layer2(l1)
-        # print('l2', l2.size()) #[6, 512, 63, 63]
-        l3 = self.layer3(l2)
-        # print('l3', l3.size()) #[6, 1024, 32, 32]
-        l4 = self.layer4(l3)
-        # print('l4', l4.size()) #[6, 2048, 16, 16]
+        x = self.maxpool(x) #[6, 64, 125, 125]
+        
+        l1 = self.layer1(x) #[6, 256, 125, 125]
+        l2 = self.layer2(l1) #[6, 512, 63, 63]
+        l3 = self.layer3(l2) #[6, 1024, 32, 32]
+        l4 = self.layer4(l3) #[6, 2048, 16, 16]
 
         l4 = self.do(l4)
-        x4 = self.p_ims1d2_outl1_dimred(l4)
-        # print('p_ims1d2_outl1_dimred-x4', x4.size()) #[6, 512, 16, 16]
+        
+        x4 = self.p_ims1d2_outl1_dimred(l4) #[6, 512, 16, 16]
         x4 = self.relu(x4)
-        x4 = self.mflow_conv_g1_pool(x4)
-        # print('mflow_conv_g1_pool-x4', x4.size()) #[6, 512, 16, 16]
-        x4 = nn.Upsample(size=l2.size()[2:], mode="bilinear", align_corners=True)(x4)
-        # print(x4.size()) #[1, 512, 63, 63]
-        x4 = self.mflow_conv_g1_b3_joint_varout_dimred(x4)
-        # print('mflow_conv_g1_b3_joint_varout_dimred-x4', x4.size()) #[6, 256, 16, 16]
-        x4 = nn.Upsample(size=l1.size()[2:], mode="bilinear", align_corners=True)(x4)
-        # print('x4', x4.size()) #[6, 256, 32, 32]--[1, 256, 125, 125]
+        x4 = self.mflow_conv_g1_pool(x4) #[6, 512, 16, 16]
+        x4 = nn.Upsample(size=l2.size()[2:], mode="bilinear", align_corners=True)(x4) #[1, 512, 63, 63]
+        x4 = self.mflow_conv_g1_b3_joint_varout_dimred(x4) #[6, 256, 16, 16]
+        x4 = nn.Upsample(size=l1.size()[2:], mode="bilinear", align_corners=True)(x4) #[6, 256, 32, 32]--[1, 256, 125, 125]
 
-        x1 = self.p_ims1d2_outl4_dimred(l1)
-        # print('p_ims1d2_outl4_dimred-x1', x1.size()) #[6, 256, 125, 125]
-        x1 = self.adapt_stage4_b2_joint_varout_dimred(x1)
-        # print('adapt_stage4_b2_joint_varout_dimred-x1', x1.size()) #[6, 256, 125, 125]
+        x1 = self.p_ims1d2_outl4_dimred(l1) #[6, 256, 125, 125]
+        x1 = self.adapt_stage4_b2_joint_varout_dimred(x1) #[6, 256, 125, 125]
         x1 = x1 + x4
         x1 = F.relu(x1)
         x1 = self.mflow_conv_g4_pool(x1) #[1, 256, 125, 125]
-        x1 = self.conv_att3(x1) #[2, 64, 125, 125]
+        x1 = self.conv_attx(x1) #[2, 64, 125, 125]
         
-        MHA = Self_Attn(64, '')
-        MHA.cuda()
-        x = MHA(x1, bpd)
-        # print('att', x.size()) #[2, 256, 125, 125]
+        MHA = Self_Attn(64, '').cuda()
+        x = MHA(x1, bpd) #[2, 256, 125, 125]
         
-        out = self.clf_conv(x)
-        # print('out', out.size()) #[6, 40, 125, 125]        
+        out = self.clf_conv(x) #[6, 40, 125, 125] 
+        
         return out
 
 
