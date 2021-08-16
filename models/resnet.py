@@ -1,20 +1,14 @@
 """RefineNet-LightWeight
-
 RefineNet-LigthWeight PyTorch for non-commercial purposes
-
 Copyright (c) 2018, Vladimir Nekrasov (vladimir.nekrasov@adelaide.edu.au)
 All rights reserved.
-
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
-
 * Redistributions of source code must retain the above copyright notice, this
   list of conditions and the following disclaimer.
-
 * Redistributions in binary form must reproduce the above copyright notice,
   this list of conditions and the following disclaimer in the documentation
   and/or other materials provided with the distribution.
-
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -27,291 +21,234 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
 
-import torch.nn as nn
-import torch.nn.functional as F
+from __future__ import print_function, division
+
+import os
+import warnings
+
+import cv2
+import numpy as np
+import pickle
 import torch
+from PIL import Image
+from torch.utils.data import Dataset
 
-from utils.helpers import maybe_download
-from utils.layer_factory import conv1x1, conv3x3, CRPBlock
-
-data_info = {7: "Person", 21: "VOC", 40: "NYU", 60: "Context"}
-
-models_urls = {
-    "50_person": "https://cloudstor.aarnet.edu.au/plus/s/mLA7NxVSPjNL7Oo/download",
-    "101_person": "https://cloudstor.aarnet.edu.au/plus/s/f1tGGpwdCnYS3xu/download",
-    "152_person": "https://cloudstor.aarnet.edu.au/plus/s/Ql64rWqiTvWGAA0/download",
-    "50_voc": "https://cloudstor.aarnet.edu.au/plus/s/xp7GcVKC0GbxhTv/download",
-    "101_voc": "https://cloudstor.aarnet.edu.au/plus/s/CPRKWiaCIDRdOwF/download",
-    "152_voc": "https://cloudstor.aarnet.edu.au/plus/s/2w8bFOd45JtPqbD/download",
-    "50_nyu": "https://cloudstor.aarnet.edu.au/plus/s/gE8dnQmHr9svpfu/download",
-    "101_nyu": "https://cloudstor.aarnet.edu.au/plus/s/VnsaSUHNZkuIqeB/download",
-    "152_nyu": "https://cloudstor.aarnet.edu.au/plus/s/EkPQzB2KtrrDnKf/download",
-    "101_context": "https://cloudstor.aarnet.edu.au/plus/s/hqmplxWOBbOYYjN/download",
-    "152_context": "https://cloudstor.aarnet.edu.au/plus/s/O84NszlYlsu00fW/download",
-    "50_imagenet": "https://download.pytorch.org/models/resnet50-19c8e357.pth",
-    "101_imagenet": "https://download.pytorch.org/models/resnet101-5d3b4d8f.pth",
-    "152_imagenet": "https://download.pytorch.org/models/resnet152-b121ed2d.pth",
-}
-
-stages_suffixes = {0: "_conv", 1: "_conv_relu_varout_dimred"}
+warnings.filterwarnings("ignore")
 
 
-class BasicBlock(nn.Module):
-    expansion = 1
+class Pad(object):
+    """Pad image and mask to the desired size
+    Args:
+      size (int) : minimum length/width
+      img_val (array) : image padding value
+      msk_val (int) : mask padding value
+    """
 
-    def __init__(self, inplanes, planes, stride=1, downsample=None):
-        super(BasicBlock, self).__init__()
-        self.conv1 = conv3x3(inplanes, planes, stride)
-        self.bn1 = nn.BatchNorm2d(planes)
-        self.relu = nn.ReLU(inplace=True)
-        self.conv2 = conv3x3(planes, planes)
-        self.bn2 = nn.BatchNorm2d(planes)
-        self.downsample = downsample
-        self.stride = stride
+    def __init__(self, size, img_val, msk_val): ###????***
+        self.size = size
+        self.img_val = img_val
+        self.msk_val = msk_val
+        self.bpd_val = 0
+        self.dpt_val = 0
 
-    def forward(self, x):
-        residual = x
-
-        out = self.conv1(x)
-        out = self.bn1(out)
-        out = self.relu(out)
-
-        out = self.conv2(out)
-        out = self.bn2(out)
-
-        if self.downsample is not None:
-            residual = self.downsample(x)
-
-        out += residual
-        out = self.relu(out)
-
-        return out
-
-
-class Bottleneck(nn.Module):
-    expansion = 4
-
-    def __init__(self, inplanes, planes, stride=1, downsample=None):
-        super(Bottleneck, self).__init__()
-        self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=False)
-        self.bn1 = nn.BatchNorm2d(planes)
-        self.conv2 = nn.Conv2d(
-            planes, planes, kernel_size=3, stride=stride, padding=1, bias=False
+    def __call__(self, sample):
+        image, mask, bpd, depth = sample["image"], sample["mask"], sample["bpd"], sample["depth"]
+        h, w = image.shape[:2]
+        h_pad = int(np.clip(((self.size - h) + 1) // 2, 0, 1e6))
+        w_pad = int(np.clip(((self.size - w) + 1) // 2, 0, 1e6))
+        pad = ((h_pad, h_pad), (w_pad, w_pad))
+        image = np.stack(
+            [
+                np.pad(
+                    image[:, :, c],
+                    pad,
+                    mode="constant",
+                    constant_values=self.img_val[c],
+                )
+                for c in range(3)
+            ],
+            axis=2,
         )
-        self.bn2 = nn.BatchNorm2d(planes)
-        self.conv3 = nn.Conv2d(planes, planes * 4, kernel_size=1, bias=False)
-        self.bn3 = nn.BatchNorm2d(planes * 4)
-        self.relu = nn.ReLU(inplace=True)
-        self.downsample = downsample
-        self.stride = stride
+        mask = np.pad(mask, pad, mode="constant", constant_values=self.msk_val)
+        bpd = np.pad(bpd, pad, mode="constant", constant_values=self.bpd_val)
+        depth = np.pad(depth, pad, mode="constant", constant_values=self.dpt_val)
+        return {"image": image, "mask": mask, "name": sample["name"], "bpd": bpd, "depth":depth}
 
-    def forward(self, x):
-        residual = x
 
-        out = self.conv1(x)
-        out = self.bn1(out)
-        out = self.relu(out)
+class RandomCrop(object):
+    """Crop randomly the image in a sample.
+    Args:
+        output_size (tuple or int): Desired output size. If int, square crop
+            is made.
+    """
 
-        out = self.conv2(out)
-        out = self.bn2(out)
-        out = self.relu(out)
+    def __init__(self, crop_size):
+        assert isinstance(crop_size, int)
+        self.crop_size = crop_size
+        if self.crop_size % 2 != 0:
+            self.crop_size -= 1
 
-        out = self.conv3(out)
-        out = self.bn3(out)
+    def __call__(self, sample):
+        image, mask, bpd, depth = sample["image"], sample["mask"], sample["bpd"], sample["depth"]
+        h, w = image.shape[:2]
+        new_h = min(h, self.crop_size)
+        new_w = min(w, self.crop_size)
+        top = np.random.randint(0, h - new_h + 1)
+        left = np.random.randint(0, w - new_w + 1)
+        image = image[top : top + new_h, left : left + new_w]
+        mask = mask[top : top + new_h, left : left + new_w]
+        bpd = bpd[top : top + new_h, left : left + new_w]
+        depth = depth[top : top + new_h, left : left + new_w]
+        return {"image": image, "mask": mask, "name": sample["name"], "bpd": bpd, "depth": depth}
 
-        if self.downsample is not None:
-            residual = self.downsample(x)
 
-        out += residual
-        out = self.relu(out)
+class ResizeShorterScale(object):
+    """Resize shorter side to a given value and randomly scale."""
 
-        return out
+    def __init__(self, shorter_side, low_scale, high_scale):
+        assert isinstance(shorter_side, int)
+        self.shorter_side = shorter_side
+        self.low_scale = low_scale
+        self.high_scale = high_scale
 
-      
-
-class Self_Attn(nn.Module):
-    """ Self attention Layer"""
-    def __init__(self, in_dim, activation=None):
-        super(Self_Attn, self).__init__()
-        
-        self.chanel_in = in_dim
-        self.activation = activation
-        
-        self.query_conv = nn.Conv2d(in_channels=in_dim , out_channels=in_dim , kernel_size= 1) ###*  out_channels check
-        self.key_conv = nn.Conv2d(in_channels=in_dim , out_channels=in_dim , kernel_size= 1) ###* out_channels check
-        self.value_conv = nn.Conv2d(in_channels=in_dim , out_channels=in_dim , kernel_size= 1)
-        self.gamma = nn.Parameter(torch.zeros(1))
-
-        self.softmax  = nn.Softmax(dim=-1) #
-        
-    def forward(self,x, b):
-        """
-            inputs :
-                x : input feature maps ( B X C X W X H)
-                b : BPD feature maps ( B X C X W X H)
-            returns :
-                out : self attention value + input feature 
-                attention: B X N X N (N is Width*Height)
-        """
-        
-        m_batchsize, C, width, height = x.size()
-        proj_query  = self.query_conv(x).view(m_batchsize,-1,width*height).permute(0,2,1) # B X C X (N) [2, 15625, 256]
-        proj_key =  self.key_conv(b).view(m_batchsize,-1,width*height) # B X C x (*W*H) [2, 256, 15625]
-        energy =  torch.bmm(proj_query, proj_key) # transpose check [2, 15625, 15625]
-        attention = self.softmax(energy) # B X (N) X (N) [2, 15625, 15625]
-        proj_value = self.value_conv(b).view(m_batchsize,-1,width*height) # B X C X N [2, 256, 15625]
-
-        out = torch.bmm(proj_value, attention.permute(0,2,1))
-        out = out.view(m_batchsize, C, width, height) #[2, 256, 125, 125]
-        
-        out = self.gamma * out + x #residual connection
-        return out#, attention      
-      
-
-class ResNetLW(nn.Module):
-    def __init__(self, block, layers, num_classes=21):
-        self.inplanes = 64
-        super(ResNetLW, self).__init__()
-        self.do = nn.Dropout(p=0.5)
-        self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
-        
-        self.conv_att1 = nn.Conv2d(1, 128, kernel_size=3, stride=2, padding=1, bias=False)
-        self.conv_att2 = nn.Conv2d(128, 256, kernel_size=3, stride=2, padding=1, bias=False)
-        self.bnatt = nn.BatchNorm2d(128)
-        self.conv_att3 = nn.Conv2d(256, 64, kernel_size=3, stride=2, bias=False) 
-        self.conv_attx = nn.Conv2d(256, 64, kernel_size=3, stride=2, bias=False) 
-
-        self.bn1 = nn.BatchNorm2d(64)
-        self.relu = nn.ReLU(inplace=True)
-        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        self.layer1 = self._make_layer(block, 64, layers[0])
-        self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
-        self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
-        self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
-        self.p_ims1d2_outl1_dimred = conv1x1(2048, 512, bias=False)
-        self.mflow_conv_g1_pool = self._make_crp(512, 512, 4)
-        self.mflow_conv_g1_b3_joint_varout_dimred = conv1x1(512, 256, bias=False)
-
-        self.p_ims1d2_outl4_dimred = conv1x1(256, 256, bias=False)
-        self.adapt_stage4_b2_joint_varout_dimred = conv1x1(256, 256, bias=False)
-        self.mflow_conv_g4_pool = self._make_crp(256, 256, 4)
-
-        self.clf_conv = nn.Conv2d(
-            64, num_classes, kernel_size=3, stride=1, padding=1, bias=True
+    def __call__(self, sample):
+        image, mask, bpd, depth = sample["image"], sample["mask"], sample["bpd"], sample["depth"]
+        min_side = min(image.shape[:2])
+        scale = np.random.uniform(self.low_scale, self.high_scale)
+        if min_side * scale < self.shorter_side:
+            scale = self.shorter_side * 1.0 / min_side
+        image = cv2.resize(
+            image, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC
         )
+        bpd = cv2.resize(
+            bpd, None, fx=scale, fy=scale, interpolation=cv2.INTER_NEAREST  
+        )
+        depth = cv2.resize(
+            depth, None, fx=scale, fy=scale, interpolation=cv2.INTER_NEAREST  
+        )
+        mask = cv2.resize(
+            mask, None, fx=scale, fy=scale, interpolation=cv2.INTER_NEAREST
+        )
+        return {"image": image, "mask": mask, "name": sample["name"], "bpd": bpd, "depth":depth}
 
-    def _make_crp(self, in_planes, out_planes, stages):
-        layers = [CRPBlock(in_planes, out_planes, stages)]
-        return nn.Sequential(*layers)
 
-    def _make_layer(self, block, planes, blocks, stride=1):
-        downsample = None
-        if stride != 1 or self.inplanes != planes * block.expansion:
-            downsample = nn.Sequential(
-                nn.Conv2d(
-                    self.inplanes,
-                    planes * block.expansion,
-                    kernel_size=1,
-                    stride=stride,
-                    bias=False,
-                ),
-                nn.BatchNorm2d(planes * block.expansion),
-            )
+class RandomMirror(object):
+    """Randomly flip the image and the mask"""
 
-        layers = []
-        layers.append(block(self.inplanes, planes, stride, downsample))
-        self.inplanes = planes * block.expansion
-        for i in range(1, blocks):
-            layers.append(block(self.inplanes, planes))
+    def __init__(self):
+        pass
 
-        return nn.Sequential(*layers)
+    def __call__(self, sample):
+        image, mask, bpd, depth = sample["image"], sample["mask"], sample["bpd"], sample["depth"]
+        do_mirror = np.random.randint(2)
+        if do_mirror:
+            image = cv2.flip(image, 1)
+            mask = cv2.flip(mask, 1)
+            bpd = cv2.flip(bpd, 1)
+            depth = cv2.flip(depth, 1)
+        return {"image": image, "mask": mask, "name": sample["name"], "bpd": bpd, "depth":depth}
 
-    def forward(self, x, bpd):
 
-        bpd = self.conv_att1(bpd) #[12, 128, 250, 250]
-        bpd = self.bnatt(bpd)
-        bpd = self.relu(bpd)
-        bpd = self.conv_att2(bpd) #[12, 256, 125, 125]
-        bpd = self.conv_att3(bpd) #[2, 64, 125, 125]
+class Normalise(object):
+    """Normalise a tensor image with mean and standard deviation.
+    Given mean: (R, G, B) and std: (R, G, B),
+    will normalise each channel of the torch.*Tensor, i.e.
+    channel = (channel - mean) / std
+    Args:
+        mean (sequence): Sequence of means for R, G, B channels respecitvely.
+        std (sequence): Sequence of standard deviations for R, G, B channels
+            respecitvely.
+    """
+
+    def __init__(self, scale, mean, std):
+        self.scale = scale
+        self.mean = mean
+        self.std = std
+
+    def __call__(self, sample):
+        image, bpd, depth = sample["image"], sample["bpd"], sample["depth"]
+
+        image = (self.scale * image - self.mean) / self.std
         
-        x = self.conv1(x)
-        x = self.bn1(x)
-        x = self.relu(x)
-        x = self.maxpool(x) #[6, 64, 125, 125]
+        bpd = ((bpd - bpd.min()) / (bpd.max() - bpd.min())) 
         
-        l1 = self.layer1(x) #[6, 256, 125, 125]
-        l2 = self.layer2(l1) #[6, 512, 63, 63]
-        l3 = self.layer3(l2) #[6, 1024, 32, 32]
-        l4 = self.layer4(l3) #[6, 2048, 16, 16]
-
-        l4 = self.do(l4)
+        depth = ((depth - depth.min()) / (depth.max() - depth.min()))
         
-        x4 = self.p_ims1d2_outl1_dimred(l4) #[6, 512, 16, 16]
-        x4 = self.relu(x4)
-        x4 = self.mflow_conv_g1_pool(x4) #[6, 512, 16, 16]
-        x4 = nn.Upsample(size=l2.size()[2:], mode="bilinear", align_corners=True)(x4) #[1, 512, 63, 63]
-        x4 = self.mflow_conv_g1_b3_joint_varout_dimred(x4) #[6, 256, 16, 16]
-        x4 = nn.Upsample(size=l1.size()[2:], mode="bilinear", align_corners=True)(x4) #[6, 256, 32, 32]--[1, 256, 125, 125]
+        return {
+            "image": image, "mask": sample["mask"], "name": sample["name"],
+            "bpd": bpd, "depth": depth
+        }
 
-        x1 = self.p_ims1d2_outl4_dimred(l1) #[6, 256, 125, 125]
-        x1 = self.adapt_stage4_b2_joint_varout_dimred(x1) #[6, 256, 125, 125]
-        x1 = x1 + x4
-        x1 = F.relu(x1)
-        x1 = self.mflow_conv_g4_pool(x1) #[1, 256, 125, 125]
-        x1 = self.conv_attx(x1) #[2, 64, 125, 125]
+
+
+class ToTensor(object):
+    """Convert ndarrays in sample to Tensors."""
+
+    def __call__(self, sample):
+        image = sample["image"]
+        # swap color axis because
+        # numpy image: H x W x C
+        # torch image: C X H X W
+        image = image.transpose((2, 0, 1))
+        return {
+          "image": torch.from_numpy(image), "mask": torch.from_numpy(sample["mask"]), 
+          "name": sample["name"], "bpd": torch.from_numpy(sample["bpd"]), 
+          "depth": torch.from_numpy(sample["depth"])
+        }
+
+
+class NYUDataset(Dataset):
+    """NYUv2-40"""
+
+    def __init__(self, data_file, data_dir, bpd_dir, transform_trn=None, transform_val=None):
+        """
+        Args:
+            data_file (string): Path to the data file with annotations.
+            data_dir (string): Directory with all the images.
+            transform_{trn, val} (callable, optional): Optional transform to be applied
+                on a sample.
+        """
+        with open(data_file, "rb") as f:###* rb
+            datalist = f.readlines()
+        self.datalist = [i[:6].decode("utf-8") + '.png' for i in datalist]
+        self.root_dir = data_dir
+        self.transform_trn = transform_trn
+        self.transform_val = transform_val
+        self.stage = "train"
+        self.bpd_dir = bpd_dir[0]
+        self.bpds = pickle.load(open(self.bpd_dir, 'rb'))
+
+    def set_stage(self, stage):
+        self.stage = stage
+
+    def __len__(self):
+        return len(self.datalist)
+
+    def __getitem__(self, idx):
+        img_name = os.path.join(self.root_dir, 'rgb', self.datalist[idx])
+        msk_name = os.path.join(self.root_dir, 'masks', self.datalist[idx])
+        dpt_name = os.path.join(self.root_dir, 'depth', self.datalist[idx])
+        bpd_name = self.datalist[idx][:6]
+
+        def read_image(x):
+            img_arr = np.array(Image.open(x))
+            if len(img_arr.shape) == 2:  # grayscale
+                img_arr = np.tile(img_arr, [3, 1, 1]).transpose(1, 2, 0)
+            return img_arr
+
+        image = read_image(img_name)
+        mask = np.array(Image.open(msk_name))
+        depth = np.array(Image.open(dpt_name))[12:, 15:]
+        bpd = self.bpds[bpd_name]
         
-        MHA = Self_Attn(64, '').cuda()
-        x = MHA(x1, bpd) #[2, 256, 125, 125]
         
-        out = self.clf_conv(x) #[6, 40, 125, 125] 
-        
-        return out
-
-
-
-def rf_lw50(num_classes, imagenet=False, pretrained=True, **kwargs):
-    model = ResNetLW(Bottleneck, [3, 4, 6, 3], num_classes=num_classes, **kwargs)
-    if imagenet:
-        key = "50_imagenet"
-        url = models_urls[key]
-        model.load_state_dict(maybe_download(key, url), strict=False)
-    elif pretrained:
-        dataset = data_info.get(num_classes, None)
-        if dataset:
-            bname = "50_" + dataset.lower()
-            key = "rf_lw" + bname
-            url = models_urls[bname]
-            model.load_state_dict(maybe_download(key, url), strict=False)
-    return model
-
-
-def rf_lw101(num_classes, imagenet=False, pretrained=True, **kwargs):
-    model = ResNetLW(Bottleneck, [3, 4, 23, 3], num_classes=num_classes, **kwargs)
-    if imagenet:
-        key = "101_imagenet"
-        url = models_urls[key]
-        model.load_state_dict(maybe_download(key, url), strict=False)
-    elif pretrained:
-        dataset = data_info.get(num_classes, None)
-        if dataset:
-            bname = "101_" + dataset.lower()
-            key = "rf_lw" + bname
-            url = models_urls[bname]
-            model.load_state_dict(maybe_download(key, url), strict=False)
-    return model
-
-
-def rf_lw152(num_classes, imagenet=False, pretrained=True, **kwargs):
-    model = ResNetLW(Bottleneck, [3, 8, 36, 3], num_classes=num_classes, **kwargs)
-    if imagenet:
-        key = "152_imagenet"
-        url = models_urls[key]
-        model.load_state_dict(maybe_download(key, url), strict=False)
-    elif pretrained:
-        dataset = data_info.get(num_classes, None)
-        if dataset:
-            bname = "152_" + dataset.lower()
-            key = "rf_lw" + bname
-            url = models_urls[bname]
-            model.load_state_dict(maybe_download(key, url), strict=False)
-    return model
+        if img_name != msk_name:
+            assert len(mask.shape) == 2, "Masks must be encoded without colourmap"
+        sample = {"image": image, "mask": mask, "name": bpd_name, "bpd": bpd, "depth": depth}
+        if self.stage == "train":
+            if self.transform_trn:
+                sample = self.transform_trn(sample)
+        elif self.stage == "val":
+            if self.transform_val:
+                sample = self.transform_val(sample)
+        return sample
