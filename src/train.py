@@ -248,16 +248,20 @@ def train_segmenter(
         start = time.time()
         input = sample['image']
         bpd = sample['bpd'].unsqueeze(1)
+        depth = sample['depth']#.unsqueeze(1)
+        target = sample["mask"].cuda()
+        
         if torch.isnan(bpd.sum()):
           with open('./nan.txt', 'w') as f:
             f.write(str(sample['name']))
             continue
-        target = sample["mask"].cuda()
+        
         input_var = torch.autograd.Variable(input).float()
         bpd_var = torch.autograd.Variable(bpd).float()
+        depth_var = torch.autograd.Variable(depth).float()
         target_var = torch.autograd.Variable(target).long()
         # Compute output
-        output = segmenter(input_var, bpd_var)
+        output = segmenter(input_var, bpd_var, depth_var)
         output = nn.functional.interpolate(
             output, size=target_var.size()[1:], mode="bilinear", align_corners=False
         )
