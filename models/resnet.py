@@ -144,10 +144,9 @@ class ResNetLW(nn.Module):
         self.bnb = nn.BatchNorm2d(32)
         self.convb1 = nn.Conv2d(32, self.numb * int(num_classes), kernel_size=5, stride=2, padding=2, bias=False)
         self.dob = nn.Dropout(p=0.2)
-        # self.convb2 = nn.Conv2d(self.numb * int(num_classes / 2), self.numb * num_classes, kernel_size=5, padding=2, bias=False)
-
-        # self.conv_res1 = nn.Conv2d(256, 16, kernel_size=1, bias=False)
-        # self.bn1d = nn.BatchNorm2d(64)
+        
+        self.conv1d = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        self.bn1d = nn.BatchNorm2d(64)
 
         self.do = nn.Dropout(p=0.5)
         self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
@@ -223,6 +222,13 @@ class ResNetLW(nn.Module):
         x = self.bn1(x)
         x = self.relu(x)
         x = self.maxpool(x)
+
+        d = self.conv1(d)
+        d = self.bn1(d)
+        d = self.relu(d)
+        d = self.maxpool(d)
+        
+        x = .8 * x + .2 * d
         
         l1 = self.layer1(x)
         l2 = self.layer2(l1)
